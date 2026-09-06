@@ -1,0 +1,132 @@
+# Source of truth for "what exists" vs "what is planned". Guards read this file.
+# Rules:
+#   - implemented  = code that exists in this repo today and has a caller listed in called_by
+#   - planned      = decided, not written; MUST NOT be described as present anywhere in docs
+#   - requires_new_architecture = explicitly out of scope for this codebase shape
+# Format is a deliberately small YAML subset (see scripts/guards/lib/arch_yaml.py).
+
+version: 0.1.0
+schema_version_of_edl: 1
+
+implemented:
+  - path: Package.swift
+    status: implemented
+    kind: manifest
+    purpose: SwiftPM manifest; iOS 26 / macOS 26; library + cli + tests
+    called_by:
+      - scripts/gate.sh
+  - path: Sources/LiveSliceCore/Timecode.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: strict HH:MM:SS.mmm parse/format shared by SRT parsing and EDL
+    called_by:
+      - Sources/LiveSliceCore/SRTParser.swift
+      - Sources/LiveSliceCore/EDLClip.swift
+      - Sources/LiveSliceCore/LLMResponseParser.swift
+  - path: Sources/LiveSliceCore/SRTParser.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: SRT text -> [SRTCue] (fail-fast) and cues -> LLM transcript text
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+  - path: Sources/LiveSliceCore/SlicingStrategy.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: topic_complete + military_news default strategy and duration-adaptive clip-count policy
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/LiveSliceCore/TopicCompletePrompt.swift
+      - Sources/LiveSliceCore/EDLDocument.swift
+  - path: Sources/LiveSliceCore/TopicCompletePrompt.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: military-news topic-complete system prompt ported from live_slice_auto
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+  - path: Sources/LiveSliceCore/DeepSeekClient.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: OpenAI-compatible chat client over URLSession; key only from DEEPSEEK_API_KEY; returns LLMUsage (tokens, latency), usage required
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/liveslice-cli/LiveSliceCLI.swift
+  - path: Sources/LiveSliceCore/LLMResponseParser.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: untrusted LLM text -> validated [EDLClip]; invalid ranges throw, never dropped
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+  - path: Sources/LiveSliceCore/EDLClip.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: one EDL clip + invariants (end>start, ordered, non-overlapping, removed inside clip and disjoint from kept)
+    called_by:
+      - Sources/LiveSliceCore/LLMResponseParser.swift
+      - Sources/LiveSliceCore/EDLDocument.swift
+      - Sources/LiveSliceCore/TopicSlicer.swift
+  - path: Sources/LiveSliceCore/EDLDocument.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: versioned EDL JSON document; encode/decode with schema_version check
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/liveslice-cli/LiveSliceCLI.swift
+  - path: Sources/LiveSliceCore/TopicSlicer.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: the vertical slice (SRT text -> DeepSeek -> EDLDocument)
+    called_by:
+      - Sources/liveslice-cli/LiveSliceCLI.swift
+  - path: Sources/liveslice-cli/LiveSliceCLI.swift
+    status: implemented
+    module: liveslice-cli
+    purpose: real caller of LiveSliceCore; used by scripts/live_check.sh
+    test_exempt: true
+    test_exempt_reason: process entry point; argument parsing is trivial and the pipeline it calls is covered by TopicSlicerTests
+    called_by:
+      - scripts/live_check.sh
+  - path: Fixtures/sample_military_news.srt
+    status: implemented
+    kind: fixture
+    purpose: synthetic SRT used by scripts/live_check.sh for the real DeepSeek run
+    called_by:
+      - scripts/live_check.sh
+
+planned:
+  - name: On-device ASR adapter
+    status: planned
+    tech: [SpeechAnalyzer, SpeechTranscriber]
+    note: iOS 26 Speech framework; produces SRT text consumed by SRTParser. Not written.
+  - name: On-device renderer
+    status: planned
+    tech: [AVFoundation]
+    note: executes EDL segments (cut, concat, 9:16 fit, burn-in subtitles). Not written.
+  - name: iOS app shell
+    status: planned
+    tech: [SwiftUI, xcodegen]
+    note: paste SRT -> show EDL list. Not generated in 0.1.0 because no real entry point existed yet.
+  - name: Matrix variants
+    status: planned
+    tech: []
+    note: multiple renders of approved clips; depends on renderer.
+  - name: Keychain API key storage
+    status: planned
+    tech: [Keychain]
+    note: replaces DEEPSEEK_API_KEY environment variable on device.
+
+requires_new_architecture:
+  - name: Multi-tenant backend
+    note: explicitly rejected; see docs/DECISIONS.md ADR-0001
+  - name: Cloud rendering
+    note: contradicts client-side rendering decision
+  - name: Recording from non-Kuaishou live sources
+    note: capture pipeline is a different product surface
+
+# Every technology name that may appear in README/docs must be in exactly one bucket.
+# Docs must write planned terms as "Term (planned)", requires_new_architecture terms as
+# "Term (requires_new_architecture)", and not_used terms as "Term (not used)".
+tech_terms:
+  implemented: [Swift, SwiftPM, Foundation, URLSession, DeepSeek, Swift Testing, Codable, JSON]
+  planned: [SpeechAnalyzer, SpeechTranscriber, AVFoundation, SwiftUI, Keychain, xcodegen]
+  requires_new_architecture: []
+  not_used: [Metal, SceneKit, CoreML, WhisperKit, Whisper, ffmpeg, PySide6, Ollama]

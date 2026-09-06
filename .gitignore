@@ -1,0 +1,33 @@
+# build
+.build/
+DerivedData/
+*.xcuserdata
+*.xcuserdatad/
+xcuserdata/
+.swiftpm/xcode/
+
+# secrets — the API key lives in the shell environment only
+.env
+.env.*
+
+# generated outputs (live_check EDLs, renders, logs)
+artifacts/
+
+# media & models never belong in git
+*.mp4
+*.mov
+*.m4v
+*.wav
+*.mp3
+*.m4a
+*.bin
+*.mlmodelc
+*.mlmodel
+*.mlpackage
+*.zip
+
+# guard scripts are python; never track bytecode
+__pycache__/
+
+# OS
+.DS_Store

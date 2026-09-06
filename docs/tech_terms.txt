@@ -1,0 +1,24 @@
+# Technology names guard 06 looks for in README/docs. Must equal the union of
+# tech_terms buckets in docs/ARCHITECTURE.yaml. One term per line.
+Swift
+SwiftPM
+Foundation
+URLSession
+DeepSeek
+Swift Testing
+Codable
+JSON
+SpeechAnalyzer
+SpeechTranscriber
+AVFoundation
+SwiftUI
+Keychain
+xcodegen
+Metal
+SceneKit
+CoreML
+WhisperKit
+Whisper
+ffmpeg
+PySide6
+Ollama
