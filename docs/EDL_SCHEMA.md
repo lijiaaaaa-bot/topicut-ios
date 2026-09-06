@@ -39,7 +39,7 @@ Producer: `EDLDocument.encode()`. Consumer: `EDLDocument.decode(_:)`. Keys are s
 | `start_sec` / `end_sec` | number | seconds, 3 decimals, same values as above |
 | `score` | number | 0.0 … 1.0 |
 | `tags` | string[] | |
-| `category` | string? | one of the military-news categories in the prompt |
+| `category` | string? | one of the topic categories in the prompt (e.g. 观点论述, 深度解读, 战情动态, etc.) |
 | `framework_id` / `framework_title` | string | the topic block the clip belongs to |
 | `mode` | string | `continuous` (1 segment) or `compressed_concat` (n segments) |
 | `segments` | segment[] | kept ranges, ordered, non-overlapping, each `end > start`, at least one |

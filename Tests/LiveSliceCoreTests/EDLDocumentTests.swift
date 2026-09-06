@@ -6,7 +6,7 @@ struct EDLDocumentTests {
     private func document(llm: LLMUsage? = TestSupport.sampleUsage) throws -> EDLDocument {
         EDLDocument(
             generatedAt: Date(timeIntervalSince1970: 1_800_000_000),
-            strategy: .topicCompleteMilitaryNews,
+            strategy: .topicCompleteGeneral,
             clipCountPolicy: ClipCountPolicy(durationMinutes: 0.35, minClips: 1, maxClips: 3, hardMaxClips: 4),
             transcript: EDLTranscriptInfo(cueCount: 5, startSec: 1, endSec: 22),
             clips: [try TestSupport.clip()],
@@ -22,7 +22,7 @@ struct EDLDocumentTests {
         #expect(text.contains("\"removed_segments\""))
         #expect(text.contains("\"framework_id\""))
         #expect(text.contains("\"generated_at\" : \"2027-01-15T08:00:00Z\""))
-        #expect(text.contains("\"domain\" : \"military_news\""))
+        #expect(text.contains("\"domain\" : \"general\""))
         #expect(text.contains("\"llm\" : {"))
         #expect(text.contains("\"prompt_tokens\" : 1200"))
         #expect(text.contains("\"latency_ms\" : 0"))

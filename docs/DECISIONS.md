@@ -53,3 +53,11 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 - 理由: 彻底消除开发者私有 Key 泄漏与代付账单风险，确保工具 100% 运行在用户本地端侧，数据与隐私不出用户信任域，契合纯端侧工具的开源定位。
 - 后果: 开发者无托管与 Token 运营成本；用户需自行申请并配置 DeepSeek API Key。
 
+## ADR-0008 切片策略通用化（默认通用题材）
+
+- 状态: 已采纳
+- 决策: 默认切片策略设为通用话题完整切片（`topic_complete + general`），提示词覆盖长视频、访谈、演讲、播客、知识科普、直播等多种通用场景。原 `military_news` 保留为可选预设领域策略，而非整个项目的硬编码绑定。
+- 理由: 本项目定位为通用的端侧 AI 视频切片 Agent；军事题材是桌面端 `live_slice_auto` 遗留的垂直领域设定，将其从核心库中解耦为可选预设，使工具对通用视频创作场景具备通用可用性。
+- 后果: `SlicingStrategy` 默认策略为 `.topicCompleteGeneral`（domain: `"general"`）；`TopicCompletePrompt` 依据传入的 `domain` 切换通用或领域特化提示词与分类；CLI 默认跑通用切片，支持 `--domain` 传参切换。
+
+

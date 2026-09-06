@@ -20,7 +20,7 @@ public struct TopicSlicer: Sendable {
     public let client: DeepSeekClient
     public let strategy: SlicingStrategy
 
-    public init(client: DeepSeekClient, strategy: SlicingStrategy = .topicCompleteMilitaryNews) {
+    public init(client: DeepSeekClient, strategy: SlicingStrategy = .topicCompleteGeneral) {
         self.client = client
         self.strategy = strategy
     }
@@ -35,8 +35,8 @@ public struct TopicSlicer: Sendable {
         }
         let policy = try strategy.clipCountPolicy(forDurationSeconds: lastCue.end - firstCue.start)
         let messages = [
-            ChatMessage(role: "system", content: TopicCompletePrompt.system(policy: policy)),
-            ChatMessage(role: "user", content: "\(TopicCompletePrompt.userIntro)\n\n\(transcript)"),
+            ChatMessage(role: "system", content: TopicCompletePrompt.system(policy: policy, domain: strategy.domain)),
+            ChatMessage(role: "user", content: "\(TopicCompletePrompt.userIntro(domain: strategy.domain))\n\n\(transcript)"),
         ]
         let reply: ChatCompletionResult = try await client.chatCompletion(messages: messages, temperature: Self.temperature)
         let clips = try LLMResponseParser.parseClips(from: reply.content)

@@ -3,7 +3,7 @@
 本地视频切片 AI Agent 的 iOS/macOS 核心库。当前版本 0.1.0 只实现一条竖切片：
 
 ```
-SRT 文本 → SRTParser → DeepSeek（topic_complete + military_news 提示词）→ 带 schema_version 的 EDL JSON
+SRT 文本 → SRTParser → DeepSeek（通用 topic_complete 提示词）→ 带 schema_version 的 EDL JSON
 ```
 
 其余能力（端侧 ASR、渲染、界面）**尚未实现**，登记在 `docs/ARCHITECTURE.yaml` 的 `planned` 段。
@@ -12,10 +12,10 @@ SRT 文本 → SRTParser → DeepSeek（topic_complete + military_news 提示词
 ## 现在就有（implemented）
 
 - Swift 包（SwiftPM，`platforms: iOS 26, macOS 26`），纯 Foundation，无第三方依赖。
-- `LiveSliceCore`：SRT 解析（严格、乱序排序、非法即报错）、军事新闻完整话题提示词、
+- `LiveSliceCore`：SRT 解析（严格、乱序排序、非法即报错）、通用完整话题切片提示词（默认通用领域 `general`，保留 `military_news` 可选预设）、
   DeepSeek OpenAI 兼容 HTTP 客户端（URLSession）、LLM 输出校验、EDL 文档编解码。
 - `liveslice-cli`：Core 的真实调用者，供 `scripts/live_check.sh` 跑真实 DeepSeek。
-- 46 个离线单元测试（Swift Testing）。
+- 56 个离线单元测试（Swift Testing）。
 - 8 道债务守卫 + 一键门禁 `scripts/gate.sh`（详见 `docs/DEBT_REGISTER.md`）。
 
 ## 还没有（planned）
@@ -48,8 +48,8 @@ bash scripts/gate.sh
 
 # 真实 DeepSeek 调用（需要 shell 里有 DEEPSEEK_API_KEY；没有则退出码 2 并说明原因）
 export DEEPSEEK_API_KEY=<your-key>
-bash scripts/live_check.sh                 # 默认输入 Fixtures/sample_military_news.srt
-swift run liveslice-cli slice path/to.srt --out edl.json
+bash scripts/live_check.sh                 # 默认输入 Fixtures/sample_military_news.srt，默认 domain=general
+swift run liveslice-cli slice path/to.srt [--out edl.json] [--domain general|military_news]
 
 # 安装 pre-commit 钩子（= gate.sh）
 bash scripts/install_hooks.sh
@@ -83,9 +83,9 @@ docs/EDL_SCHEMA.md         EDL JSON 契约与兼容规则
 
 ## 与 live_slice_auto 的关系
 
-提示词、`highlights` 字段（start/end/start_sec/end_sec/title/score/tags/reason/segments/
-removed_segments/category）与 `topic_complete + military_news` 默认策略从
-`/Users/lijia/live_slice_auto` 移植，原项目只读、未修改。原项目基于 PySide6 (not used) 与
+完整话题切片的核心理念、提示词边界规则与 `highlights` 数据结构从 `/Users/lijia/live_slice_auto` 移植，
+原项目只读、未修改。本项目解除了原项目单一绑定军事题材的限制，默认采用覆盖各类长视频/播客/访谈的通用
+切片策略（`domain: general`），同时保留 `military_news` 作为可选预设。原项目基于 PySide6 (not used) 与
 ffmpeg (not used)，本项目不复用其运行时。
 
 ## 开源协议

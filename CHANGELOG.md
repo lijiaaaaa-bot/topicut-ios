@@ -6,6 +6,11 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Added
+- Generalized topic-complete slicing: default strategy changed to `topic_complete + general` with a
+  domain-agnostic prompt covering speeches, podcasts, interviews, lectures, and knowledge videos.
+  `TopicCompletePrompt` and `SlicingStrategy` now support domain customization while preserving
+  `military_news` as an optional preset (ADR-0008).
+- `liveslice-cli` supports an optional `--domain <domain>` argument (defaults to `general`).
 - BYOK (Bring Your Own Key) open source model formalized with MIT License (`LICENSE`),
   explicit security documentation in `README.md`, and ADR-0007 in `docs/DECISIONS.md`.
 - `LLMUsage` (model, prompt/completion/total tokens, latency_ms) returned by `DeepSeekClient` and

@@ -32,15 +32,16 @@ implemented:
   - path: Sources/LiveSliceCore/SlicingStrategy.swift
     status: implemented
     module: LiveSliceCore
-    purpose: topic_complete + military_news default strategy and duration-adaptive clip-count policy
+    purpose: topic_complete default general strategy (domain configurable) and duration-adaptive clip-count policy
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/LiveSliceCore/TopicCompletePrompt.swift
       - Sources/LiveSliceCore/EDLDocument.swift
+      - Sources/liveslice-cli/LiveSliceCLI.swift
   - path: Sources/LiveSliceCore/TopicCompletePrompt.swift
     status: implemented
     module: LiveSliceCore
-    purpose: military-news topic-complete system prompt ported from live_slice_auto
+    purpose: topic-complete system prompt (general-purpose default, domain adaptable)
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
   - path: Sources/LiveSliceCore/DeepSeekClient.swift

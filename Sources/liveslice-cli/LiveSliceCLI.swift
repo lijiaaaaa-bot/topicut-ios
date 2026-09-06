@@ -1,6 +1,6 @@
 // Why: the one real caller of LiveSliceCore today. It exists so the DeepSeek path is exercised
 // end-to-end (scripts/live_check.sh) instead of only in offline tests. Usage:
-//   liveslice-cli slice <input.srt> [--out <edl.json>]
+//   liveslice-cli slice <input.srt> [--out <edl.json>] [--domain <general|military_news|...>]
 // Exit codes: 0 success, 1 pipeline error (message on stderr), 2 usage / missing API key.
 
 import Foundation
@@ -10,18 +10,19 @@ import LiveSliceCore
 struct LiveSliceCLI {
     static func main() async {
         do {
-            let (input, output) = try parseArguments(Array(CommandLine.arguments.dropFirst()))
+            let options = try parseArguments(Array(CommandLine.arguments.dropFirst()))
             let configuration = try DeepSeekConfiguration.fromEnvironment(ProcessInfo.processInfo.environment)
-            let srtText = try String(contentsOfFile: input, encoding: .utf8)
-            let slicer = TopicSlicer(client: DeepSeekClient(configuration: configuration))
+            let srtText = try String(contentsOfFile: options.input, encoding: .utf8)
+            let strategy = SlicingStrategy.topicComplete(domain: options.domain)
+            let slicer = TopicSlicer(client: DeepSeekClient(configuration: configuration), strategy: strategy)
             let document = try await slicer.slice(srtText: srtText)
             let json = try document.encode()
-            if let output {
+            if let output = options.output {
                 try json.write(to: URL(fileURLWithPath: output))
             } else {
                 print(String(decoding: json, as: UTF8.self))
             }
-            print(summary(document, model: configuration.model, output: output))
+            print(summary(document, model: configuration.model, output: options.output))
         } catch DeepSeekError.missingAPIKey {
             fail("DEEPSEEK_API_KEY is not set. Export it in your shell; this tool has no offline/demo mode.", code: 2)
         } catch let error as UsageError {
@@ -31,29 +32,40 @@ struct LiveSliceCLI {
         }
     }
 
+    struct CLIOptions: Equatable {
+        let input: String
+        let output: String?
+        let domain: String
+    }
+
     struct UsageError: Error {
         let message: String
     }
 
-    static func parseArguments(_ args: [String]) throws -> (input: String, output: String?) {
+    static func parseArguments(_ args: [String]) throws -> CLIOptions {
         guard args.first == "slice", args.count >= 2 else {
-            throw UsageError(message: "usage: liveslice-cli slice <input.srt> [--out <edl.json>]")
+            throw UsageError(message: "usage: liveslice-cli slice <input.srt> [--out <edl.json>] [--domain <domain>]")
         }
         var output: String?
+        var domain = "general"
         var index = 2
         while index < args.count {
-            guard args[index] == "--out", index + 1 < args.count else {
+            if args[index] == "--out", index + 1 < args.count {
+                output = args[index + 1]
+                index += 2
+            } else if args[index] == "--domain", index + 1 < args.count {
+                domain = args[index + 1]
+                index += 2
+            } else {
                 throw UsageError(message: "unknown or incomplete argument: \(args[index])")
             }
-            output = args[index + 1]
-            index += 2
         }
-        return (args[1], output)
+        return CLIOptions(input: args[1], output: output, domain: domain)
     }
 
     static func summary(_ document: EDLDocument, model: String, output: String?) -> String {
         var lines = [
-            "schema_version=\(document.schemaVersion) model=\(model) clips=\(document.clips.count) "
+            "schema_version=\(document.schemaVersion) model=\(model) domain=\(document.strategy.domain) clips=\(document.clips.count) "
                 + "policy=\(document.clipCountPolicy.minClips)~\(document.clipCountPolicy.maxClips) "
                 + "(hard \(document.clipCountPolicy.hardMaxClips), \(document.clipCountPolicy.durationMinutes) min)",
         ]

@@ -1,7 +1,5 @@
-// Why: `topic_complete + military_news` is the non-removable default strategy inherited from
-// live_slice_auto; the duration-adaptive clip-count table lives here so the prompt and the EDL
-// share one source of truth for "how many clips is reasonable for this transcript length".
-// Ported from live_slice_auto/live_slice/framework_slice.py (MILITARY_NEWS_TOPIC_DURATION_RANGES).
+// Why: Slicing strategies define the mode (topic_complete) and domain (general default, military_news preset,
+// or custom), pairing the prompt and EDL to a single source of truth for duration-adaptive clip counts.
 
 import Foundation
 
@@ -49,18 +47,41 @@ public struct SlicingStrategy: Codable, Equatable, Sendable {
         self.maxTranscriptChars = maxTranscriptChars
     }
 
-    /// The project default. Do not remove: `topic_complete + military_news` is the product baseline.
+    public static let standardDurationRanges: [DurationRange] = [
+        DurationRange(maxMinutes: 10, minClips: 1, maxClips: 3, hardMaxClips: 4),
+        DurationRange(maxMinutes: 30, minClips: 3, maxClips: 7, hardMaxClips: 9),
+        DurationRange(maxMinutes: 60, minClips: 5, maxClips: 10, hardMaxClips: 12),
+        DurationRange(maxMinutes: nil, minClips: 6, maxClips: 14, hardMaxClips: 16),
+    ]
+
+    /// The default general-purpose topic-complete slicing strategy.
+    public static let topicCompleteGeneral = SlicingStrategy(
+        mode: "topic_complete",
+        domain: "general",
+        durationRanges: standardDurationRanges,
+        maxTranscriptChars: 120_000
+    )
+
+    /// Preserved preset for specialized military news slicing.
     public static let topicCompleteMilitaryNews = SlicingStrategy(
         mode: "topic_complete",
         domain: "military_news",
-        durationRanges: [
-            DurationRange(maxMinutes: 10, minClips: 1, maxClips: 3, hardMaxClips: 4),
-            DurationRange(maxMinutes: 30, minClips: 3, maxClips: 7, hardMaxClips: 9),
-            DurationRange(maxMinutes: 60, minClips: 5, maxClips: 10, hardMaxClips: 12),
-            DurationRange(maxMinutes: nil, minClips: 6, maxClips: 14, hardMaxClips: 16),
-        ],
+        durationRanges: standardDurationRanges,
         maxTranscriptChars: 120_000
     )
+
+    /// Factory for topic-complete slicing with custom domain.
+    public static func topicComplete(domain: String = "general") -> SlicingStrategy {
+        if domain == "military_news" {
+            return .topicCompleteMilitaryNews
+        }
+        return SlicingStrategy(
+            mode: "topic_complete",
+            domain: domain,
+            durationRanges: standardDurationRanges,
+            maxTranscriptChars: 120_000
+        )
+    }
 
     /// Picks the first range whose `maxMinutes` covers the transcript duration.
     /// The last range must have `maxMinutes == nil`; a table without a catch-all is a programming error.

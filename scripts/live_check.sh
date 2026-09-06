@@ -11,10 +11,11 @@ if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
 fi
 
 input="${1:-Fixtures/sample_military_news.srt}"
+domain="${2:-general}"
 mkdir -p artifacts/live_check
 out="artifacts/live_check/edl_$(date +%Y%m%d_%H%M%S).json"
 
 swift build --product liveslice-cli
 started=$(date +%s)
-swift run --skip-build liveslice-cli slice "$input" --out "$out"
+swift run --skip-build liveslice-cli slice "$input" --out "$out" --domain "$domain"
 echo "live check OK in $(( $(date +%s) - started ))s -> $out"

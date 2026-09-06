@@ -34,4 +34,4 @@ go in the `planned` section, not in code. No protocols or abstraction layers "fo
 - Do not commit, push, reset, or rewrite history unless the user explicitly asks for that git action.
 - Do not install tools (brew/pip/npm) unless the user explicitly asks.
 - EDL schema changes follow `docs/EDL_SCHEMA.md` and get a `CHANGELOG.md` entry.
-- `topic_complete + military_news` stays the default strategy; do not remove it.
+- `topic_complete` is the core slicing mode; `general` is the default domain, with `military_news` preserved as an optional preset.
