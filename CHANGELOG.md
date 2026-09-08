@@ -6,6 +6,13 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Fixed
+- Preview playback no longer goes through a video composition. The composition track carries the
+  source's own transform and the player layer scales it, so the stage shows the decoded frames
+  with no compositor pass; scaling to the 1920 cap and burning captions stay export-only. This
+  also makes the stage play in the iOS simulator (which rejected the composition's pixel format).
+- The app declares `zh-Hans` as its development language, so dates in the project list format the
+  way the rest of the UI reads (`9月8日`, not `Sep 8`) on Chinese devices. The Photos "add" usage
+  text says 成片 instead of the retired 竖版切片.
 - Clips play with sound when the phone's ring/silent switch is on silent. The stage now puts the
   audio session into `.playback` / `.moviePlayback` before playing (the default `.soloAmbient`
   category is muted by the switch); a session failure is shown on the stage like any other

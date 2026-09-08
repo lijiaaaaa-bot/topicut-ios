@@ -117,7 +117,11 @@ struct ClipRendererTests {
         #expect(preview.renderSize == CGSize(width: 640, height: 360))
         let duration = try await preview.playerItem.asset.load(.duration)
         #expect(abs(duration.seconds - 4) < 0.05)
-        #expect(preview.playerItem.videoComposition?.renderSize == CGSize(width: 640, height: 360))
+        // Playback is the decoded source itself: no compositor pass, orientation carried by the track.
+        #expect(preview.playerItem.videoComposition == nil)
+        let tracks = try await preview.playerItem.asset.loadTracks(withMediaType: .video)
+        let transform = try await tracks.first?.load(.preferredTransform)
+        #expect(transform == .identity)
         // Nothing exported: previewing must not touch the disk.
         #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == before)
     }

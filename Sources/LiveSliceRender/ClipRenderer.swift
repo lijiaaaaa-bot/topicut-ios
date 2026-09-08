@@ -106,11 +106,11 @@ public struct ClipRenderer: Sendable {
         let source = try await SourceInfo.load(url: sourceURL)
         let renderSize = resolvedRenderSize(source: source)
         let (composition, videoTrack) = try Self.buildComposition(source: source, timeline: timeline)
-        let videoComposition = try buildVideoComposition(
-            source: source, track: videoTrack, duration: composition.duration, windows: [], renderSize: renderSize
-        )
+        // No video composition for playback: the track's own transform orients the frames and the
+        // player layer scales them, so the preview is the decoded source with no compositor pass.
+        // Scaling to `renderSize` and burning captions are export concerns (`render`).
+        videoTrack.preferredTransform = source.preferredTransform
         let item = AVPlayerItem(asset: composition)
-        item.videoComposition = videoComposition
         return ClipPreview(
             playerItem: item, subtitles: timeline.subtitleWindows(for: cues),
             renderSize: renderSize, durationSec: timeline.totalDuration, source: source

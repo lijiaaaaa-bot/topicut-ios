@@ -3,10 +3,12 @@
 端侧 AI 视频切片 App「片刻 AI」（桌面显示「片刻」，内部 target：`LiveSlice`，iOS 26）及其 Swift 包。1.0.0 的完整链路：
 
 ```
-导入视频 → 端侧 ASR（SpeechAnalyzer / SpeechTranscriber）→ SRT 文本 → DeepSeek（通用 topic_complete 提示词）
-→ 带 schema_version 的 EDL JSON → AVFoundation 渲染 1080×1920 竖版 MP4（剪切、拼接、居中裁切、烧录字幕）
-→ 预览 / 分享 / 保存到相册
+导入视频 → 端侧 ASR（SpeechAnalyzer / SpeechTranscriber）→ SRT 文本 → 用户选定的 AI 服务（默认 DeepSeek，通用 topic_complete 提示词）
+→ 带 schema_version 的 EDL JSON → 即点即播预览（源画面 + 字幕叠加层）→ 保存时 AVFoundation 按原比例导出（剪切、拼接、烧录字幕，长边 ≤ 1920）
+→ 保存到相册
 ```
+
+隐私政策与用户支持页由 `gh-pages` 分支托管：<https://lijiaaaaa-bot.github.io/liveslice-ios/>。
 
 判断「有什么 / 没什么」只看 `docs/ARCHITECTURE.yaml`，不看本 README 的语气。
 

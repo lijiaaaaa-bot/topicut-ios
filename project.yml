@@ -3,6 +3,8 @@
 name: LiveSlice
 options:
   bundleIdPrefix: com.jiajiali
+  # The UI is written in Simplified Chinese; dates and numbers must format the same way.
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.0"
@@ -24,7 +26,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.jiajiali.liveslice
         PRODUCT_NAME: LiveSlice
         MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "16"
+        CURRENT_PROJECT_VERSION: "17"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
@@ -39,7 +41,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 将渲染完成的竖版切片保存到你的相册。
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 将切好的成片保存到你的相册。
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 从相册选择要切片的长视频。
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: 在本机对视频进行语音转写，音频不会上传。
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
