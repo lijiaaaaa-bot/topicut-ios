@@ -19,7 +19,7 @@ implemented:
   - path: project.yml
     status: implemented
     kind: manifest
-    purpose: xcodegen spec for 片刻 AI (home-screen name 片刻; internal target LiveSlice; bundle com.jiajiali.liveslice, team SP272623JD)
+    purpose: xcodegen spec for Topicut (home-screen name Topicut; internal target LiveSlice; bundle com.jiajiali.liveslice, team SP272623JD)
     called_by:
       - scripts/gen_project.sh
   # ---- LiveSliceCore: decision layer (SRT -> DeepSeek -> EDL) ----

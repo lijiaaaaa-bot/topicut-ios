@@ -105,6 +105,13 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 - 理由: 转写按分钟计、DeepSeek 按 token 计费，同一个视频反复导入却每次从零跑，是最直接的资源浪费；而「设置变了还沿用旧结果」是另一种错误——用户换了模型却看到旧模型的切片。把输入记在产物旁边，两种错误都能用同一条规则避免。整文件哈希在两小时 4K 素材上会比导入本身更慢，三窗口采样在实际使用中不会把两个不同录像判成同一个，且任何重编码都会改变所有窗口。API Key 不进指纹：换 Key 不改变答案。
 - 后果: 新增 `SourceFingerprint.swift`、`PipelineReuse.swift`；会话的值类型移到 `SessionTypes.swift`。`ProjectStore.adopt` 接受指纹。同一视频重新导入后落在已有项目上（列表不新增一行）；改模型后重开旧项目会重新调用 DeepSeek 一次并清掉旧导出；改语言设置为「自动」会重跑已用固定语言转写过的项目（自动检测可能选到别的语言，不能假定相同）。首页尚未提示「已识别为同一视频」（planned）。
 
+## ADR-0021 产品名 Topicut
+
+- 状态: 已采纳，已实现（2026-09-08）
+- 决策: 产品名改为 `Topicut`（Topic + cut），App Store 名称、桌面名称、站点、文档统一使用；不再有中文名或副名。内部 target `LiveSlice`、bundle ID `com.jiajiali.liveslice`、仓库名 `liveslice-ios` 与 GitHub Pages 地址不变——它们对用户不可见，改动只会让已提交的隐私政策 URL 与历史构建失效。
+- 理由: 用户不接受 `LiveSlice`（像直播工具）与「片刻 AI」（既不表意，又带着 ADR-0011 清掉的那类自我介绍气味）。要求纯英文、可自造。候选在美区与中国区 App Store 检索后无同名：Topicut / Wholecut / Cutpoint / Segmenta / Seamly；选 Topicut 是因为它一眼说清产品动作「按话题切」，七个字母，可读可拼。
+- 后果: 守卫 09 的产品名列表加入 `Topicut`；图标无文字，不需改。App Store Connect 的名称与描述中的产品名同步改为 Topicut。
+
 ## ADR-0020 切片请求显式关闭模型的思考模式
 
 - 状态: 已采纳，已实现（2026-09-08）

@@ -19,7 +19,7 @@ report() {
 }
 
 # Product / brand names as user-visible strings.
-report 'product name in UI' < <(rg -n --no-heading '"[^"]*(片刻|LiveSlice|Pianke)[^"]*"' Sources App --glob '*.swift' || true)
+report 'product name in UI' < <(rg -n --no-heading '"[^"]*(片刻|LiveSlice|Pianke|Topicut)[^"]*"' Sources App --glob '*.swift' || true)
 # Greeting / slogan / self-description copy.
 report 'slogan copy' < <(rg -n --no-heading '"[^"]*(欢迎|Welcome|一键|轻松|智能|AI 驱动|让你|帮你|只需)[^"]*"' Sources App --glob '*.swift' || true)
 # Labels that restate the value next to them ("标签：", "来源：", "时长："). Error prefixes

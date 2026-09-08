@@ -14,7 +14,7 @@ Every guard runs from `scripts/gate.sh`; any failure makes the gate (and the pre
 | 7 | Documentation drift | `scripts/guards/06_docs_drift.py` + `docs/tech_terms.txt` | a term in README/AGENTS/CHANGELOG/docs is written as present but is `planned` / `not_used` in `ARCHITECTURE.yaml`; term list and yaml buckets disagree | write the marker inline, e.g. `Foo (planned)`, `ffmpeg (not used)` |
 | — | Secrets in repo (enabler for No Fallbacks) | `scripts/guards/07_no_secrets.sh` | key-like strings, `DEEPSEEK_API_KEY=<value>` with a real-looking value, private key blocks, a tracked or present `.env` | none |
 | 8 | Comprehension debt / orphaned intent | `scripts/guards/08_intent_present.py` | a source file lacks `// Why:` in its first 3 lines; `docs/DECISIONS.md` lacks ADR format or a required topic (多租户 / 端侧 / schema_version / 竖切片 / fallback) | none — write the ADR |
-| 9 | Redundant / self-referential UI copy | `scripts/guards/09_no_self_reference.sh` | a user-visible string in `Sources/` or `App/` contains the product name (`片刻`, `LiveSlice`, `Pianke`), slogan words (欢迎 / 一键 / 轻松 / 智能 …), or a label that restates the value it prefixes (`标签：\(…)`) | error prefixes that name the failed operation (`…失败：`) are exempt; the product name lives only in `project.yml` and the icon |
+| 9 | Redundant / self-referential UI copy | `scripts/guards/09_no_self_reference.sh` | a user-visible string in `Sources/` or `App/` contains the product name (`Topicut`, `片刻`, `LiveSlice`, `Pianke`), slogan words (欢迎 / 一键 / 轻松 / 智能 …), or a label that restates the value it prefixes (`标签：\(…)`) | error prefixes that name the failed operation (`…失败：`) are exempt; the product name lives only in `project.yml` and the icon |
 
 ## Known limitations of the guards (honest scope)
 

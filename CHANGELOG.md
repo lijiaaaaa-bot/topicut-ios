@@ -5,6 +5,10 @@ EDL `schema_version` changes are listed under their own heading in each release.
 
 ## [Unreleased]
 
+### Changed
+- Product name is `Topicut` (ADR-0021): App Store name, home-screen label, site and docs. Internal
+  target `LiveSlice`, bundle ID `com.jiajiali.liveslice` and the repository name are unchanged.
+
 ### Fixed
 - A project sliced by build 13–14 (stored key `deepseek-chat|…`) no longer re-slices once after
   upgrading: the stored key is normalized through the alias table before comparison, not only the

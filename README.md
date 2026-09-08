@@ -1,6 +1,6 @@
 # liveslice-ios
 
-端侧 AI 视频切片 App「片刻 AI」（桌面显示「片刻」，内部 target：`LiveSlice`，iOS 26）及其 Swift 包。1.0.0 的完整链路：
+端侧 AI 视频切片 App「Topicut」（内部 target：`LiveSlice`，bundle `com.jiajiali.liveslice`，iOS 26；曾名 LiveSlice / 片刻 AI，见 ADR-0021）及其 Swift 包。1.0.0 的完整链路：
 
 ```
 导入视频 → 端侧 ASR（SpeechAnalyzer / SpeechTranscriber）→ SRT 文本 → 用户选定的 AI 服务（默认 DeepSeek，通用 topic_complete 提示词）
