@@ -21,6 +21,13 @@ public enum PipelineReuse {
         return "\(name)|\(baseURL.trimmingCharacters(in: .whitespaces))"
     }
 
+    /// A stored key written before an alias retired (`deepseek-chat|…`) means the same model as
+    /// the key the app computes today; compare both in normalized form.
+    static func normalizedSliceKey(_ stored: String) -> String {
+        guard let bar = stored.firstIndex(of: "|") else { return stored }
+        return sliceKey(model: String(stored[..<bar]), baseURL: String(stored[stored.index(after: bar)...]))
+    }
+
     /// The saved transcript stands if it exists and the current ASR setting would produce a
     /// transcript in the same language: same preference, or a fixed locale equal to the one the
     /// transcript already has. Records from before provenance was stored (`transcribedWith == nil`)
@@ -38,6 +45,6 @@ public enum PipelineReuse {
     public static func sliceIsCurrent(_ record: ProjectRecord, transcriptCurrent: Bool, key: String) -> Bool {
         guard transcriptCurrent, record.document != nil else { return false }
         guard let with = record.slicedWith else { return true }
-        return with == key
+        return normalizedSliceKey(with) == normalizedSliceKey(key)
     }
 }

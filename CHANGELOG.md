@@ -6,6 +6,9 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Fixed
+- A project sliced by build 13–14 (stored key `deepseek-chat|…`) no longer re-slices once after
+  upgrading: the stored key is normalized through the alias table before comparison, not only the
+  current one.
 - Slicing no longer hangs on "正在找话题" for minutes. `deepseek-v4-flash` (the default since
   ADR-0018) thinks at high effort by default, which over a two-hour transcript means minutes of
   reasoning before the first byte; every request now sends `thinking: {type: disabled}` and

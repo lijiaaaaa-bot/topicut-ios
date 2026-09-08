@@ -25,10 +25,15 @@ struct PipelineReuseTests {
         let old = PipelineReuse.sliceKey(model: "deepseek-chat", baseURL: "https://api.deepseek.com")
         #expect(old == "deepseek-v4-flash|https://api.deepseek.com")
         // A project sliced under the old default is still current under the new default.
-        let record = record(transcribedWith: "auto", document: try SessionFixtures.document(), slicedWith: old)
-        #expect(PipelineReuse.sliceIsCurrent(record, transcriptCurrent: true, key: PipelineReuse.sliceKey(model: "deepseek-v4-flash", baseURL: "https://api.deepseek.com")))
+        let aliased = record(transcribedWith: "auto", document: try SessionFixtures.document(), slicedWith: old)
+        #expect(PipelineReuse.sliceIsCurrent(aliased, transcriptCurrent: true, key: PipelineReuse.sliceKey(model: "deepseek-v4-flash", baseURL: "https://api.deepseek.com")))
         // Other names are passed through untouched.
         #expect(PipelineReuse.sliceKey(model: "qwen-plus", baseURL: "https://x.example/v1") == "qwen-plus|https://x.example/v1")
+        // A record saved by a build that did not know the alias stores the raw old key; it must
+        // still count as current, or every old project re-slices (and pays) once after upgrading.
+        let raw = record(transcribedWith: "auto", document: try SessionFixtures.document(), slicedWith: "deepseek-chat|https://api.deepseek.com")
+        #expect(PipelineReuse.sliceIsCurrent(raw, transcriptCurrent: true, key: "deepseek-v4-flash|https://api.deepseek.com"))
+        #expect(!PipelineReuse.sliceIsCurrent(raw, transcriptCurrent: true, key: "deepseek-v4-pro|https://api.deepseek.com"))
     }
 
     @Test func transcriptNeedsASavedSRTAndLocale() {
