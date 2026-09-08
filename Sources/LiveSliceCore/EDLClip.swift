@@ -133,4 +133,25 @@ public struct EDLClip: Codable, Equatable, Sendable {
     public var keptDurationSec: Double {
         segments.reduce(0) { $0 + ($1.endSec - $1.startSec) }
     }
+
+    /// Clip ids for a run of framework ids: `<framework_id>_c_<NN>`, NN counting every clip that
+    /// shares the framework id in order. The model may emit one framework id in two blocks;
+    /// restarting NN per block gave duplicate ids, and lists keyed by id cannot select duplicates.
+    public static func uniqueIDs(frameworkIDs: [String]) -> [String] {
+        var ordinalByFramework: [String: Int] = [:]
+        return frameworkIDs.map { frameworkID in
+            let ordinal = ordinalByFramework[frameworkID, default: 0] + 1
+            ordinalByFramework[frameworkID] = ordinal
+            return "\(frameworkID)_c_\(String(format: "%02d", ordinal))"
+        }
+    }
+
+    /// The same clip under another id; everything else, including validation, is unchanged.
+    public func withID(_ newID: String) throws -> EDLClip {
+        try EDLClip(
+            id: newID, title: title, reason: reason, score: score, tags: tags, category: category,
+            frameworkId: frameworkId, frameworkTitle: frameworkTitle, mode: mode,
+            segments: segments, removedSegments: removedSegments
+        )
+    }
 }

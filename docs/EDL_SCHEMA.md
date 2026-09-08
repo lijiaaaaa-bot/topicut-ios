@@ -26,7 +26,7 @@ Producer: `EDLDocument.encode()`. Consumer: `EDLDocument.decode(_:)`. Keys are s
 | `clip_count_policy` | object | `duration_minutes`, `min_clips`, `max_clips`, `hard_max_clips` |
 | `transcript` | object | `cue_count`, `start_sec`, `end_sec` of the source SRT |
 | `clips` | array | see below; may be empty only if the LLM returned zero slices (which currently is an error) |
-| `llm` | object? | **optional, added 2026-09-06 without a version bump** (rule 2). `model`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `latency_ms`. Absent in documents written before the field existed; decoders get `nil`. Producers must fill it: a DeepSeek response without `usage` is an error, never zero-filled. |
+| `llm` | object? | **optional, added 2026-09-06 without a version bump** (rule 2). `model`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `latency_ms`, and (optional, added 2026-09-07, rule 2) `prompt_cache_hit_tokens` — the prompt tokens the server billed at its cache-hit rate; present only when the server reports it (DeepSeek does). Absent in documents written before the field existed; decoders get `nil`. Producers must fill it: a DeepSeek response without `usage` is an error, never zero-filled. |
 
 ## Clip
 

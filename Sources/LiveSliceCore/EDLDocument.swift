@@ -49,6 +49,25 @@ public struct EDLDocument: Codable, Equatable, Sendable {
         self.llm = llm
     }
 
+    private init(copying other: EDLDocument, clips: [EDLClip]) {
+        schemaVersion = other.schemaVersion
+        generatedAt = other.generatedAt
+        strategy = other.strategy
+        clipCountPolicy = other.clipCountPolicy
+        transcript = other.transcript
+        self.clips = clips
+        llm = other.llm
+    }
+
+    /// The same document with clip ids renumbered by `EDLClip.uniqueIDs`. Documents written before
+    /// that rule could hold two clips with one id; content is untouched, only the labels change.
+    /// Returns `self` unchanged when the ids already follow the rule.
+    public func withUniqueClipIDs() throws -> EDLDocument {
+        let ids = EDLClip.uniqueIDs(frameworkIDs: clips.map(\.frameworkId))
+        guard ids != clips.map(\.id) else { return self }
+        return EDLDocument(copying: self, clips: try zip(clips, ids).map { try $0.withID($1) })
+    }
+
     /// Deterministic, diff-friendly JSON (sorted keys, snake_case, pretty printed).
     public func encode() throws -> Data {
         let encoder = JSONEncoder()

@@ -1,0 +1,50 @@
+# Why: the iOS app target is generated (xcodegen) from this file so the .xcodeproj never needs to
+# be hand-maintained or committed. Run `bash scripts/gen_project.sh`.
+name: LiveSlice
+options:
+  bundleIdPrefix: com.jiajiali
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+packages:
+  liveslice-ios:
+    path: .
+targets:
+  LiveSlice:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: App/LiveSlice
+    dependencies:
+      - package: liveslice-ios
+        product: LiveSliceUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jiajiali.liveslice
+        PRODUCT_NAME: LiveSlice
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "16"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: 片刻
+        INFOPLIST_KEY_LSRequiresIPhoneOS: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.video
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 将渲染完成的竖版切片保存到你的相册。
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 从相册选择要切片的长视频。
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: 在本机对视频进行语音转写，音频不会上传。
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SUPPORTS_MACCATALYST: NO
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: SP272623JD

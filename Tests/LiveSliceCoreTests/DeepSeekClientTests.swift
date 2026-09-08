@@ -13,7 +13,7 @@ struct DeepSeekClientTests {
     @Test func environmentDefaultsAndOverrides() throws {
         let defaults = try DeepSeekConfiguration.fromEnvironment(["DEEPSEEK_API_KEY": "k"])
         #expect(defaults.baseURL.absoluteString == "https://api.deepseek.com")
-        #expect(defaults.model == "deepseek-chat")
+        #expect(defaults.model == "deepseek-v4-flash")
         let custom = try DeepSeekConfiguration.fromEnvironment([
             "DEEPSEEK_API_KEY": "k", "DEEPSEEK_BASE_URL": "https://proxy.example", "DEEPSEEK_MODEL": "m",
         ])
@@ -48,6 +48,29 @@ struct DeepSeekClientTests {
         #expect(result.usage.completionTokens == 340)
         #expect(result.usage.totalTokens == 1540)
         #expect(result.usage.latencyMs >= 0)
+        #expect(result.usage.promptCacheHitTokens == nil)
+    }
+
+    @Test func decodesDeepSeekCacheHitTokensWhenPresent() throws {
+        let body = try DeepSeekClient.decodeBody(Data("""
+        {"choices":[{"message":{"role":"assistant","content":"x"}}],
+         "usage":{"prompt_tokens":1200,"completion_tokens":340,"total_tokens":1540,"prompt_cache_hit_tokens":1000,"prompt_cache_miss_tokens":200}}
+        """.utf8))
+        #expect(body.usage.promptCacheHitTokens == 1000)
+    }
+
+    @Test func usageRoundTripsThroughEDLJSONWithAndWithoutCacheHits() throws {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let withHits = LLMUsage(model: "m", promptTokens: 10, completionTokens: 5, totalTokens: 15, latencyMs: 1, promptCacheHitTokens: 4)
+        let data = try encoder.encode(withHits)
+        #expect(String(decoding: data, as: UTF8.self).contains("\"prompt_cache_hit_tokens\":4"))
+        #expect(try decoder.decode(LLMUsage.self, from: data) == withHits)
+        // Documents written before the field existed decode with nil.
+        let legacy = Data("{\"model\":\"m\",\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15,\"latency_ms\":1}".utf8)
+        #expect(try decoder.decode(LLMUsage.self, from: legacy).promptCacheHitTokens == nil)
     }
 
     @Test func missingUsageIsAnErrorNotZero() async throws {

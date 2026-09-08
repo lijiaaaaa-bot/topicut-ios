@@ -2,8 +2,8 @@
 """Guard 04 — test file names match contents; every source has a test twin (debt type 5).
 
   - Tests/**/XxxTests.swift must declare a type named XxxTests
-  - Sources/**/Foo.swift must have Tests/**/FooTests.swift, unless ARCHITECTURE.yaml marks the
-    source `test_exempt: true` with a `test_exempt_reason`
+  - Sources/**/Foo.swift and App/**/Foo.swift must have Tests/**/FooTests.swift, unless
+    ARCHITECTURE.yaml marks the source `test_exempt: true` with a `test_exempt_reason`
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def main() -> int:
                 failures += 1
             exempt[entry["path"]] = entry
 
-    sources = sorted((ROOT / "Sources").rglob("*.swift"))
+    sources = sorted(p for folder in ("Sources", "App") for p in (ROOT / folder).rglob("*.swift"))
     for path in sources:
         rel = path.relative_to(ROOT).as_posix()
         if rel in exempt:

@@ -31,3 +31,6 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# generated Xcode project (bash scripts/gen_project.sh)
+*.xcodeproj

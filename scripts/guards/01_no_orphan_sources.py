@@ -3,9 +3,9 @@
 
 Checks:
   (a) every `implemented` path in docs/ARCHITECTURE.yaml exists, and every `called_by` path exists
-  (b) every Sources/**/*.swift file is registered under `implemented`
-  (c) every `public` type declared in Sources/ is referenced in at least one other file
-      (Sources/ or Tests/); files containing `@main` are exempt (entry points have no caller)
+  (b) every Sources/**/*.swift and App/**/*.swift file is registered under `implemented`
+  (c) every `public` type declared in Sources/ or App/ is referenced in at least one other file
+      (Sources/, App/ or Tests/); files containing `@main` are exempt (entry points have no caller)
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def main() -> int:
                 fail(f"{entry['path']}: called_by {caller} does not exist")
                 failures += 1
 
-    sources = swift_files("Sources")
+    sources = swift_files("Sources") + swift_files("App")
     for path in sources:
         rel = path.relative_to(ROOT).as_posix()
         if rel not in registered:

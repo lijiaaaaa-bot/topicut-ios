@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard 03 — no god objects (debt type 4).
 
-Any Swift file under Sources/ or Tests/ longer than MAX_FILE_LINES fails.
+Any Swift file under Sources/, App/ or Tests/ longer than MAX_FILE_LINES fails.
 Any `func`/`init` body longer than MAX_FUNC_LINES fails. Coarse brace counting after stripping
 comments and multi-line string literals (the prompt file contains `{}` inside strings).
 """
@@ -67,7 +67,7 @@ def function_lengths(text: str) -> list[tuple[int, int]]:
 
 def main() -> int:
     failures = 0
-    files = sorted(p for folder in ("Sources", "Tests") for p in (ROOT / folder).rglob("*.swift"))
+    files = sorted(p for folder in ("Sources", "App", "Tests") for p in (ROOT / folder).rglob("*.swift"))
     checked = 0
     for path in files:
         rel = path.relative_to(ROOT).as_posix()

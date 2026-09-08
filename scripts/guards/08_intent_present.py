@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard 08 — intent must not go missing (debt type 8: comprehension debt / orphaned intent).
 
-  - every Sources/**/*.swift starts with a `// Why:` line within its first 3 lines
+  - every Sources/**/*.swift and App/**/*.swift starts with a `// Why:` line within its first 3 lines
   - docs/DECISIONS.md is a list of short ADRs (`## ADR-NNNN <title>`), each with
     `- 状态:`, `- 决策:`, `- 理由:` lines, and the required topics are covered
 """
@@ -28,7 +28,7 @@ REQUIRED_FIELDS = ("- 状态:", "- 决策:", "- 理由:")
 
 def main() -> int:
     failures = 0
-    sources = sorted((ROOT / "Sources").rglob("*.swift"))
+    sources = sorted(p for folder in ("Sources", "App") for p in (ROOT / folder).rglob("*.swift"))
     for path in sources:
         head = path.read_text(encoding="utf-8").splitlines()[:3]
         if not any(line.startswith("// Why:") for line in head):

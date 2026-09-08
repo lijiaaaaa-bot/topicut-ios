@@ -1,5 +1,7 @@
 // swift-tools-version: 6.2
-// Why: single SwiftPM manifest; one library (LiveSliceCore), one real caller (liveslice-cli), one test target.
+// Why: single SwiftPM manifest. Core (decision), ASR (on-device speech), Render (AVFoundation),
+// Keychain (API key), UI (SwiftUI screens + session) and the CLI. The iOS app target lives in
+// project.yml (xcodegen) and consumes `LiveSliceUI`; every target here builds and tests on macOS.
 import PackageDescription
 
 let package = Package(
@@ -7,22 +9,38 @@ let package = Package(
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "LiveSliceCore", targets: ["LiveSliceCore"]),
+        .library(name: "LiveSliceUI", targets: ["LiveSliceUI"]),
         .executable(name: "liveslice-cli", targets: ["liveslice-cli"]),
     ],
     targets: [
+        .target(name: "LiveSliceCore", path: "Sources/LiveSliceCore"),
+        .target(name: "LiveSliceASR", dependencies: ["LiveSliceCore"], path: "Sources/LiveSliceASR"),
+        .target(name: "LiveSliceRender", dependencies: ["LiveSliceCore"], path: "Sources/LiveSliceRender"),
+        .target(name: "LiveSliceKeychain", path: "Sources/LiveSliceKeychain"),
         .target(
-            name: "LiveSliceCore",
-            path: "Sources/LiveSliceCore"
+            name: "LiveSliceUI",
+            dependencies: ["LiveSliceCore", "LiveSliceASR", "LiveSliceRender", "LiveSliceKeychain"],
+            path: "Sources/LiveSliceUI"
         ),
-        .executableTarget(
-            name: "liveslice-cli",
-            dependencies: ["LiveSliceCore"],
-            path: "Sources/liveslice-cli"
+        .target(name: "LiveSliceTestSupport", path: "Sources/LiveSliceTestSupport"),
+        .executableTarget(name: "liveslice-cli", dependencies: ["LiveSliceCore"], path: "Sources/liveslice-cli"),
+        .testTarget(name: "LiveSliceCoreTests", dependencies: ["LiveSliceCore"], path: "Tests/LiveSliceCoreTests"),
+        .testTarget(
+            name: "LiveSliceASRTests",
+            dependencies: ["LiveSliceASR", "LiveSliceTestSupport"],
+            path: "Tests/LiveSliceASRTests"
         ),
         .testTarget(
-            name: "LiveSliceCoreTests",
-            dependencies: ["LiveSliceCore"],
-            path: "Tests/LiveSliceCoreTests"
+            name: "LiveSliceRenderTests",
+            dependencies: ["LiveSliceRender", "LiveSliceTestSupport"],
+            path: "Tests/LiveSliceRenderTests"
+        ),
+        .testTarget(name: "LiveSliceKeychainTests", dependencies: ["LiveSliceKeychain"], path: "Tests/LiveSliceKeychainTests"),
+        .testTarget(name: "LiveSliceUITests", dependencies: ["LiveSliceUI"], path: "Tests/LiveSliceUITests"),
+        .testTarget(
+            name: "LiveSliceTestSupportTests",
+            dependencies: ["LiveSliceTestSupport"],
+            path: "Tests/LiveSliceTestSupportTests"
         ),
     ],
     swiftLanguageModes: [.v6]

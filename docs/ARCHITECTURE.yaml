@@ -5,22 +5,31 @@
 #   - requires_new_architecture = explicitly out of scope for this codebase shape
 # Format is a deliberately small YAML subset (see scripts/guards/lib/arch_yaml.py).
 
-version: 0.1.0
+version: 1.0.0
 schema_version_of_edl: 1
 
 implemented:
   - path: Package.swift
     status: implemented
     kind: manifest
-    purpose: SwiftPM manifest; iOS 26 / macOS 26; library + cli + tests
+    purpose: SwiftPM manifest; iOS 26 / macOS 26; Core, ASR, Render, Keychain, UI, TestSupport, cli + tests
     called_by:
       - scripts/gate.sh
+      - project.yml
+  - path: project.yml
+    status: implemented
+    kind: manifest
+    purpose: xcodegen spec for 片刻 AI (home-screen name 片刻; internal target LiveSlice; bundle com.jiajiali.liveslice, team SP272623JD)
+    called_by:
+      - scripts/gen_project.sh
+  # ---- LiveSliceCore: decision layer (SRT -> DeepSeek -> EDL) ----
   - path: Sources/LiveSliceCore/Timecode.swift
     status: implemented
     module: LiveSliceCore
     purpose: strict HH:MM:SS.mmm parse/format shared by SRT parsing and EDL
     called_by:
       - Sources/LiveSliceCore/SRTParser.swift
+      - Sources/LiveSliceCore/SRTWriter.swift
       - Sources/LiveSliceCore/EDLClip.swift
       - Sources/LiveSliceCore/LLMResponseParser.swift
   - path: Sources/LiveSliceCore/SRTParser.swift
@@ -29,6 +38,12 @@ implemented:
     purpose: SRT text -> [SRTCue] (fail-fast) and cues -> LLM transcript text
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
+  - path: Sources/LiveSliceCore/SRTWriter.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: [SRTCue] -> SRT text; the ASR output crosses into TopicSlicer as text, round-trippable through SRTParser
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
   - path: Sources/LiveSliceCore/SlicingStrategy.swift
     status: implemented
     module: LiveSliceCore
@@ -47,10 +62,11 @@ implemented:
   - path: Sources/LiveSliceCore/DeepSeekClient.swift
     status: implemented
     module: LiveSliceCore
-    purpose: OpenAI-compatible chat client over URLSession; key only from DEEPSEEK_API_KEY; returns LLMUsage (tokens, latency), usage required
+    purpose: OpenAI-compatible chat client over URLSession (any endpoint speaking the chat/completions protocol; default DeepSeek, model deepseek-v4-flash); key from DEEPSEEK_API_KEY (CLI) or Keychain (app); returns LLMUsage (usage required; prompt_cache_hit_tokens kept when the server sends it)
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift
+      - Sources/LiveSliceUI/LiveDependencies.swift
   - path: Sources/LiveSliceCore/LLMResponseParser.swift
     status: implemented
     module: LiveSliceCore
@@ -60,24 +76,296 @@ implemented:
   - path: Sources/LiveSliceCore/EDLClip.swift
     status: implemented
     module: LiveSliceCore
-    purpose: one EDL clip + invariants (end>start, ordered, non-overlapping, removed inside clip and disjoint from kept)
+    purpose: one EDL clip + invariants (end>start, ordered, non-overlapping, removed inside clip and disjoint from kept); `uniqueIDs` is the one clip-id rule (`<framework_id>_c_<NN>`, NN counted per framework id across blocks)
     called_by:
       - Sources/LiveSliceCore/LLMResponseParser.swift
       - Sources/LiveSliceCore/EDLDocument.swift
       - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/LiveSliceRender/ClipTimeline.swift
   - path: Sources/LiveSliceCore/EDLDocument.swift
     status: implemented
     module: LiveSliceCore
-    purpose: versioned EDL JSON document; encode/decode with schema_version check
+    purpose: versioned EDL JSON document; encode/decode with schema_version check; `withUniqueClipIDs` relabels documents saved before the unique-id rule
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift
+      - Sources/LiveSliceUI/SliceSession.swift
   - path: Sources/LiveSliceCore/TopicSlicer.swift
     status: implemented
     module: LiveSliceCore
     purpose: the vertical slice (SRT text -> DeepSeek -> EDLDocument)
     called_by:
       - Sources/liveslice-cli/LiveSliceCLI.swift
+      - Sources/LiveSliceUI/LiveDependencies.swift
+  # ---- LiveSliceASR: on-device speech (ADR-0002) ----
+  - path: Sources/LiveSliceASR/AudioExtractor.swift
+    status: implemented
+    module: LiveSliceASR
+    purpose: video/audio file -> .m4a audio track via AVFoundation export; no audio track is a typed error
+    called_by:
+      - Sources/LiveSliceASR/SpeechTranscriptionService.swift
+  - path: Sources/LiveSliceASR/ASRLocalePreference.swift
+    status: implemented
+    module: LiveSliceASR
+    purpose: typed ASR locale preference (`auto` or fixed Locale) shared by settings and the transcription pipeline
+    called_by:
+      - Sources/LiveSliceASR/SpeechTranscriptionService.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SliceSession.swift
+  - path: Sources/LiveSliceASR/CueSegmenter.swift
+    status: implemented
+    module: LiveSliceASR
+    purpose: timed word tokens -> subtitle-shaped SRTCues; chinese/english policies via forLocale
+    called_by:
+      - Sources/LiveSliceASR/SpeechTranscriptionService.swift
+  - path: Sources/LiveSliceASR/SpeechLanguageDetector.swift
+    status: implemented
+    module: LiveSliceASR
+    purpose: sliding 12s probes with sequential zh_CN/en_US analyzers; script-ratio scoring picks locale, skips silent intros (ADR-0013)
+    called_by:
+      - Sources/LiveSliceASR/SpeechTranscriptionService.swift
+      - Sources/LiveSliceUI/SettingsView.swift
+  - path: Sources/LiveSliceASR/SpeechTranscriptionService.swift
+    status: implemented
+    module: LiveSliceASR
+    purpose: SpeechAnalyzer + SpeechTranscriber -> TranscriptionOutcome; auto preference installs both models, probes, then full-file ASR with locale-matched CueSegmenterPolicy
+    called_by:
+      - Sources/LiveSliceUI/LiveDependencies.swift
+      - Sources/LiveSliceUI/SettingsView.swift
+  # ---- LiveSliceRender: executes the EDL (AVFoundation) ----
+  - path: Sources/LiveSliceRender/ClipTimeline.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: kept segments -> contiguous output timeline; maps source time (cues) to composition time; pure
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+  - path: Sources/LiveSliceRender/VerticalFrame.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: preferredTransform-aware oriented size, fit transform and source render size (source aspect, longest edge capped at 1920); pure
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+  - path: Sources/LiveSliceRender/SubtitleRasterizer.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: caption text -> CGImage via Core Text (white fill, black stroke, centred, wrapped); CATextLayer does not draw in export
+    called_by:
+      - Sources/LiveSliceRender/SubtitleLayerBuilder.swift
+  - path: Sources/LiveSliceRender/SubtitleLayerBuilder.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: Core Animation layer tree with per-cue opacity windows for AVVideoCompositionCoreAnimationTool
+    test_exempt: true
+    test_exempt_reason: only observable through an export; ClipRendererTests pixel-checks the caption band with and without a cue
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+  - path: Sources/LiveSliceRender/ClipRenderer.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: EDLClip + source video -> MP4 in the source's aspect ratio (cut, concat, burnt-in subtitles; one shipped shape, `RenderOptions.standard`) via AVAssetExportSession with progress; `preview` hands the same composition to an AVPlayerItem (no file) plus subtitle windows for a live overlay
+    called_by:
+      - Sources/LiveSliceUI/LiveDependencies.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+  # ---- LiveSliceKeychain (ADR-0007) ----
+  - path: Sources/LiveSliceKeychain/APIKeyStore.swift
+    status: implemented
+    module: LiveSliceKeychain
+    purpose: the user's AI service key as one Keychain generic-password item; every OSStatus surfaced
+    called_by:
+      - Sources/LiveSliceUI/AppSettings.swift
+  # ---- LiveSliceUI: SwiftUI screens + session state machine ----
+  - path: Sources/LiveSliceUI/AIServicePreset.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: the AI services offered by name (DeepSeek default, 硅基流动, 阿里云百炼) - endpoint, default model, key page - plus matching(baseURL) back to a preset (nil = custom); listed services are documented OpenAI-compatible chat endpoints payable from China (only DeepSeek is exercised by live_check.sh); anything else goes through 自定义
+    called_by:
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SettingsView.swift
+  - path: Sources/LiveSliceUI/AppSettings.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: observable settings (Keychain key, AI service endpoint/model with servicePreset + apply(preset), ASR locale preference auto|fixed); missing key is DeepSeekError.missingAPIKey
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/RootView.swift
+      - Sources/LiveSliceUI/SettingsView.swift
+  - path: Sources/LiveSliceUI/ProjectStore.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: ProjectRecord (one imported video + transcript/EDL checkpoints as project.json, each stamped with the inputs that produced it - sourceFingerprint, transcribedWith, slicedWith; nil on older records) and ProjectStore (Application Support/Projects, excluded from backup; adopt/save/load/list/delete/requireSource); unreadable records and missing sources are typed errors
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/RootView.swift
+      - Sources/LiveSliceUI/ProjectListView.swift
+      - Sources/LiveSliceUI/PipelineReuse.swift
+  - path: Sources/LiveSliceUI/SourceFingerprint.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: identity of an imported file for de-duplication - `v1-<size>-<sha256>` over the byte count plus three 8 MiB windows (head, centre, tail; whole file when it fits); unreadable or short reads are typed errors
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
+  - path: Sources/LiveSliceUI/PipelineReuse.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: the reuse rules - sliceKey(model, baseURL) (never the API key; the retired alias deepseek-chat counts as deepseek-v4-flash); a transcript stands for the same ASR preference or a fixed locale equal to the one it already has; an EDL stands when the transcript stands and model/endpoint are unchanged; records without provenance are kept
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
+  - path: Sources/LiveSliceUI/LLMCost.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: token text for any server, and a CNY estimate only for DeepSeek's own endpoint (price sheet for v4-flash / v4-pro / retired alias, cache-hit rate when reported, peak = Beijing Mon-Fri 9-12 + 14-18 at double); nil for other endpoints, unknown models or unreadable timestamps - never a guessed price
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/SessionTypes.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: SessionStage, ClipRenderState, SessionResult (+ slicedWith provenance for the cost estimate), SessionDependencies (injected pipeline closures) and ErrorText (LocalizedError description, else typed case + message)
+    called_by:
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/LiveDependencies.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ClipPlayerView.swift
+      - Sources/LiveSliceUI/ProcessingView.swift
+  - path: Sources/LiveSliceUI/SliceSession.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: observable pipeline state machine (prepare model -> transcribe -> slice -> ready; per-clip export on save, cancellation -> idle); fingerprints imports and reopens the existing project for a video already imported, otherwise adopts it as a new project; on every run reuses a saved step only while PipelineReuse says its inputs are unchanged, else reruns it and everything after it (dropping stale exports); relabels duplicate clip ids in older records; restores exports on disk; purges scratch only; errors verbatim
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+      - Sources/LiveSliceUI/HomeView.swift
+      - Sources/LiveSliceUI/ProcessingView.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ClipDetailView.swift
+      - Sources/LiveSliceUI/ProjectListView.swift
+  - path: Sources/LiveSliceUI/ProjectListView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: saved projects on the idle screen (first frame, first clip title, clip count + date or the missing step); tap reopens/resumes, swipe deletes
+    test_exempt: true
+    test_exempt_reason: SwiftUI list; the records it shows and the open/delete behaviour are covered by ProjectStoreTests and SliceSessionTests
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+  - path: Sources/LiveSliceUI/ActivityKeeper.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: keeps the screen awake and holds a UIKit background task while the session works (foreground-only pipeline, stated honestly in the UI)
+    test_exempt: true
+    test_exempt_reason: wraps UIApplication idle-timer and background-task calls that only exist on a device or simulator
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+  - path: Sources/LiveSliceUI/StudioTheme.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: palette, shared spring, glow backdrop, progress ring, primary/quiet button styles, iOS-only bar styling
+    test_exempt: true
+    test_exempt_reason: SwiftUI styling constants and views with no logic beyond drawing
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+      - Sources/LiveSliceUI/HomeView.swift
+      - Sources/LiveSliceUI/ProcessingView.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+      - Sources/LiveSliceUI/ClipDetailView.swift
+      - Sources/LiveSliceUI/SettingsView.swift
+  - path: Sources/LiveSliceUI/ProcessingView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: wait screen - ring with the real stage fraction (spins for the LLM call), real elapsed clock, three stage segments, keep-open notice
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; the stage values it renders are covered by SliceSessionTests
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+  - path: Sources/LiveSliceUI/ClipPlayerView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: plays a ClipPreview (source composition, no export) in one AVQueuePlayer + AVPlayerLooper after switching the iOS audio session to .playback/.moviePlayback (audible with the silent switch on); caption overlay follows the player clock through the preview's subtitle windows; player/item/looper/audio-session failures shown verbatim on the stage
+    test_exempt: true
+    test_exempt_reason: AVKit playback view; needs a display and a decoder. The composition and subtitle windows it plays are covered by ClipRendererTests.previewPlaysTheCutCompositionWithoutWritingAFile
+    called_by:
+      - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+  - path: Sources/LiveSliceUI/LiveDependencies.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: production wiring of SessionDependencies (SpeechTranscriptionService, TopicSlicer over DeepSeekClient, ClipRenderer) + Caches-based app directories
+    test_exempt: true
+    test_exempt_reason: pure composition of already-tested modules; SliceSessionTests cover the state machine with injected functions
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+      - Sources/LiveSliceUI/PickedVideo.swift
+  - path: Sources/LiveSliceUI/PickedVideo.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: Transferable for PhotosPicker/fileImporter; copies the picked movie into the scratch directory
+    test_exempt: true
+    test_exempt_reason: PhotosPicker transfer needs the Photos UI; copyIntoScratch is a one-line FileManager copy
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+  - path: Sources/LiveSliceUI/PhotoLibrarySaver.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: adds a rendered MP4 to Photos (add-only authorization); denial is a typed error
+    test_exempt: true
+    test_exempt_reason: requires Photos authorization prompt on a device; cannot run headless
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/RootView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: NavigationStack root, settings sheet, ActivityKeeper wiring, stage haptics, AppBootstrap (production wiring or visible bootstrap error)
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; compiled for iOS and macOS, exercised in the simulator smoke run
+    called_by:
+      - App/LiveSlice/LiveSliceApp.swift
+  - path: Sources/LiveSliceUI/HomeView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: idle hero (glow backdrop, slice motif, saved-project list when any exist, one primary action; without a key shows FirstRunGuide - on-device transcription, text-only upload, cost order of magnitude - and leads to Settings), cross-fade between stage screens, failures verbatim
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; state transitions it renders are covered by SliceSessionTests
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+  - path: Sources/LiveSliceUI/ClipListView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: workbench (capped-height instant preview in the source aspect ratio, one line with the slicing call's token count and - for DeepSeek - its estimated charge, table of every clip with full titles, export-on-save with progress in the button, in-button save confirmation + haptics) + TimeText
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; TimeText formatting is covered by TimeTextTests
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+  - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens rationale), ClipPoster
+    test_exempt: true
+    test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/ClipDetailView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: read-only rationale sheet for one clip (reason, score, kept/removed ranges, segment bar)
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; the EDL invariants it displays are covered by EDLClipTests
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/SettingsView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: AI service picker (presets + 自定义, applying a preset fills endpoint/model), BYOK key entry (Keychain) with a link to the chosen service's key page, endpoint/model under 高级, ASR locale preference (auto + fixed) and speech model download status
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; AppSettings persistence covered by AppSettingsTests
+    called_by:
+      - Sources/LiveSliceUI/RootView.swift
+  # ---- App target ----
+  - path: App/LiveSlice/LiveSliceApp.swift
+    status: implemented
+    module: LiveSlice
+    purpose: iOS app entry point (@main); delegates to AppBootstrap
+    test_exempt: true
+    test_exempt_reason: process entry point with no logic
+    called_by:
+      - project.yml
+  # ---- CLI + test support ----
   - path: Sources/liveslice-cli/LiveSliceCLI.swift
     status: implemented
     module: liveslice-cli
@@ -86,6 +374,14 @@ implemented:
     test_exempt_reason: process entry point; argument parsing is trivial and the pipeline it calls is covered by TopicSlicerTests
     called_by:
       - scripts/live_check.sh
+  - path: Sources/LiveSliceTestSupport/SyntheticMedia.swift
+    status: implemented
+    module: LiveSliceTestSupport
+    purpose: synthesizes throwaway media at test time (solid-colour video, sine tone, macOS say speech) so ASR/render tests are real without binaries in git
+    called_by:
+      - Tests/LiveSliceASRTests/SpeechTranscriptionServiceTests.swift
+      - Tests/LiveSliceASRTests/AudioExtractorTests.swift
+      - Tests/LiveSliceRenderTests/ClipRendererTests.swift
   - path: Fixtures/sample_military_news.srt
     status: implemented
     kind: fixture
@@ -94,26 +390,18 @@ implemented:
       - scripts/live_check.sh
 
 planned:
-  - name: On-device ASR adapter
-    status: planned
-    tech: [SpeechAnalyzer, SpeechTranscriber]
-    note: iOS 26 Speech framework; produces SRT text consumed by SRTParser. Not written.
-  - name: On-device renderer
-    status: planned
-    tech: [AVFoundation]
-    note: executes EDL segments (cut, concat, 9:16 fit, burn-in subtitles). Not written.
-  - name: iOS app shell
-    status: planned
-    tech: [SwiftUI, xcodegen]
-    note: paste SRT -> show EDL list. Not generated in 0.1.0 because no real entry point existed yet.
   - name: Matrix variants
     status: planned
     tech: []
-    note: multiple renders of approved clips; depends on renderer.
-  - name: Keychain API key storage
+    note: multiple renders (durations, caption styles) of approved clips; depends on renderer.
+  - name: EDL editing in app
     status: planned
-    tech: [Keychain]
-    note: replaces DEEPSEEK_API_KEY environment variable on device.
+    tech: []
+    note: trim / merge clips before rendering; today the EDL is read-only in the UI.
+  - name: Background rendering
+    status: planned
+    tech: []
+    note: keep exports running when the app is backgrounded.
 
 requires_new_architecture:
   - name: Multi-tenant backend
@@ -127,7 +415,7 @@ requires_new_architecture:
 # Docs must write planned terms as "Term (planned)", requires_new_architecture terms as
 # "Term (requires_new_architecture)", and not_used terms as "Term (not used)".
 tech_terms:
-  implemented: [Swift, SwiftPM, Foundation, URLSession, DeepSeek, Swift Testing, Codable, JSON]
-  planned: [SpeechAnalyzer, SpeechTranscriber, AVFoundation, SwiftUI, Keychain, xcodegen]
+  implemented: [Swift, SwiftPM, Foundation, URLSession, DeepSeek, Swift Testing, Codable, JSON, SpeechAnalyzer, SpeechTranscriber, AVFoundation, SwiftUI, Keychain, xcodegen, Speech, PhotosUI, Core Text, AVKit, TestFlight]
+  planned: []
   requires_new_architecture: []
-  not_used: [Metal, SceneKit, CoreML, WhisperKit, Whisper, ffmpeg, PySide6, Ollama]
+  not_used: [Metal, SceneKit, CoreML, WhisperKit, Whisper, ffmpeg, PySide6, Ollama, CATextLayer]

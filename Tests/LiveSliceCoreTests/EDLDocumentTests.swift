@@ -14,6 +14,29 @@ struct EDLDocumentTests {
         )
     }
 
+    @Test func uniqueClipIDsCountPerFrameworkAcrossBlocks() {
+        #expect(EDLClip.uniqueIDs(frameworkIDs: ["f_01", "f_01", "f_02", "f_01"]) == ["f_01_c_01", "f_01_c_02", "f_02_c_01", "f_01_c_03"])
+        #expect(EDLClip.uniqueIDs(frameworkIDs: []).isEmpty)
+    }
+
+    @Test func withUniqueClipIDsRelabelsDuplicatesAndKeepsContent() throws {
+        let first = try TestSupport.clip()
+        let twin = try first.withID(first.id) // same id, second clip of the same framework
+        let stale = EDLDocument(
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000), strategy: .topicCompleteGeneral,
+            clipCountPolicy: ClipCountPolicy(durationMinutes: 0.35, minClips: 1, maxClips: 3, hardMaxClips: 4),
+            transcript: EDLTranscriptInfo(cueCount: 5, startSec: 1, endSec: 22),
+            clips: [first, twin], llm: nil
+        )
+        let fixed = try stale.withUniqueClipIDs()
+        #expect(fixed.clips.map(\.id) == ["\(first.frameworkId)_c_01", "\(first.frameworkId)_c_02"])
+        #expect(fixed.clips.map(\.segments) == stale.clips.map(\.segments))
+        #expect(fixed.generatedAt == stale.generatedAt)
+        #expect(fixed.transcript == stale.transcript)
+        // Already-unique documents come back identical.
+        #expect(try document().withUniqueClipIDs() == document())
+    }
+
     @Test func encodesSnakeCaseWithSchemaVersion() throws {
         let data = try document().encode()
         let text = String(decoding: data, as: UTF8.self)

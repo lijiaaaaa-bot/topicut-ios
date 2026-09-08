@@ -23,12 +23,11 @@ public enum LLMResponseParser {
         } catch let error as DecodingError {
             throw LLMResponseError.decoding(describe(error))
         }
+        let pairs = response.frameworks.flatMap { framework in framework.slices.map { (framework, $0) } }
+        let ids = EDLClip.uniqueIDs(frameworkIDs: pairs.map(\.0.id))
         var clips: [EDLClip] = []
-        for framework in response.frameworks {
-            for (offset, slice) in framework.slices.enumerated() {
-                let clipID = "\(framework.id)_c_\(String(format: "%02d", offset + 1))"
-                clips.append(try makeClip(slice, clipID: clipID, framework: framework))
-            }
+        for (index, (framework, slice)) in pairs.enumerated() {
+            clips.append(try makeClip(slice, clipID: ids[index], framework: framework))
         }
         guard !clips.isEmpty else { throw LLMResponseError.noSlices }
         return clips

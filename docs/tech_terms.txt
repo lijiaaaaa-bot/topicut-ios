@@ -14,6 +14,11 @@ AVFoundation
 SwiftUI
 Keychain
 xcodegen
+Speech
+PhotosUI
+Core Text
+AVKit
+TestFlight
 Metal
 SceneKit
 CoreML
@@ -22,3 +27,4 @@ Whisper
 ffmpeg
 PySide6
 Ollama
+CATextLayer

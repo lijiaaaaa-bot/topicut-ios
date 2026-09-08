@@ -16,7 +16,9 @@ public enum DeepSeekError: Error, Equatable, Sendable {
 public struct DeepSeekConfiguration: Equatable, Sendable {
     public static let environmentKeyName = "DEEPSEEK_API_KEY"
     public static let defaultBaseURL = "https://api.deepseek.com"
-    public static let defaultModel = "deepseek-chat"
+    /// DeepSeek's current non-thinking model. `deepseek-chat` was an alias for it that the
+    /// platform retired in 2026-07 and no longer lists under `/models`.
+    public static let defaultModel = "deepseek-v4-flash"
 
     public let apiKey: String
     public let baseURL: URL
@@ -91,7 +93,8 @@ public struct DeepSeekClient: Sendable {
                 promptTokens: body.usage.promptTokens,
                 completionTokens: body.usage.completionTokens,
                 totalTokens: body.usage.totalTokens,
-                latencyMs: latencyMs
+                latencyMs: latencyMs,
+                promptCacheHitTokens: body.usage.promptCacheHitTokens
             )
         )
     }
@@ -140,11 +143,15 @@ public struct DeepSeekClient: Sendable {
             let promptTokens: Int
             let completionTokens: Int
             let totalTokens: Int
+            /// DeepSeek extension: how many prompt tokens were billed at the cache-hit rate. Other
+            /// servers omit it; then the cost estimate treats every prompt token as a cache miss.
+            let promptCacheHitTokens: Int?
 
             enum CodingKeys: String, CodingKey {
                 case promptTokens = "prompt_tokens"
                 case completionTokens = "completion_tokens"
                 case totalTokens = "total_tokens"
+                case promptCacheHitTokens = "prompt_cache_hit_tokens"
             }
         }
         let choices: [Choice]
@@ -160,13 +167,20 @@ public struct LLMUsage: Codable, Equatable, Sendable {
     public let completionTokens: Int
     public let totalTokens: Int
     public let latencyMs: Int
+    /// Prompt tokens billed at the cache-hit rate (DeepSeek reports it; nil when the server did not).
+    /// Optional EDL field added 2026-09-07 without a schema bump (EDL_SCHEMA rule 2).
+    public let promptCacheHitTokens: Int?
 
-    public init(model: String, promptTokens: Int, completionTokens: Int, totalTokens: Int, latencyMs: Int) {
+    public init(
+        model: String, promptTokens: Int, completionTokens: Int, totalTokens: Int, latencyMs: Int,
+        promptCacheHitTokens: Int? = nil
+    ) {
         self.model = model
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
         self.latencyMs = latencyMs
+        self.promptCacheHitTokens = promptCacheHitTokens
     }
 }
 

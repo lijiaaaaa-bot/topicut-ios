@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import LiveSliceCore
 
@@ -72,6 +73,19 @@ struct LLMResponseParserTests {
         #expect(throws: EDLClipError.removedSegmentOutsideClip(clipID: "f_01_c_01", removedIndex: 1)) {
             try LLMResponseParser.parseClips(from: trailing)
         }
+    }
+
+    @Test func repeatedFrameworkIDsStillYieldUniqueClipIDs() throws {
+        // The model emitted the same framework twice; the second block's clips continue the numbering.
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: Data(TestSupport.sampleLLMReply.utf8)) as? [String: Any]
+        )
+        let frameworks = try #require(object["frameworks"] as? [Any])
+        let twice = try JSONSerialization.data(withJSONObject: ["frameworks": frameworks + frameworks])
+
+        let clips = try LLMResponseParser.parseClips(from: String(decoding: twice, as: UTF8.self))
+        #expect(clips.map(\.id) == ["f_01_c_01", "f_01_c_02"])
+        #expect(Set(clips.map(\.id)).count == clips.count)
     }
 
     @Test func rejectsEmptyFrameworksAndInvalidTimestamps() {
