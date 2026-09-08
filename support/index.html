@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="片刻 AI 用户支持：如何开始、密钥与费用、常见问题、问题反馈。">
+  <title>用户支持 · 片刻 AI</title>
+  <link rel="icon" href="../assets/app-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="../">
+        <img src="../assets/app-icon.png" alt="片刻 AI 图标">
+        <span>片刻 AI</span>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a href="../privacy/">隐私</a>
+        <a href="./" aria-current="page">支持</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <p class="eyebrow">APP SUPPORT</p>
+    <h1>用户支持</h1>
+    <p class="lede">反馈问题时请写明 App 版本、设备型号、系统版本、视频来源（相册或文件）与复现步骤。若是切片失败，请附上失败页显示的完整错误文字。</p>
+    <p class="meta">当前版本：1.0 (16) · iPhone 与 iPad · iOS 26 及以上</p>
+    <a class="contact-link" href="https://github.com/lijiaaaaa-bot/liveslice-ios/issues/new?labels=support&amp;title=%5BSupport%5D%20">提交支持请求</a>
+    <section class="section">
+      <h2>第一次使用</h2>
+      <p>首页点「连接 AI 服务」，在设置里选一个服务（默认 DeepSeek），点「创建密钥」到该平台申请一个 API 密钥，粘贴回来保存。之后首页出现「选择视频」。</p>
+    </section>
+    <section class="section">
+      <h2>为什么需要自己的密钥</h2>
+      <p>找话题这一步由 AI 服务完成，按用量向你收费。App 不内置任何密钥、不做中转、不收订阅——你的费用直接付给该服务，开发者不经手。DeepSeek 目前的价格下，两小时视频切一次约 0.2–0.5 元；成片页会显示每次实际消耗的 token 数与估算费用。</p>
+    </section>
+    <section class="section">
+      <h2>处理时能不能切到别的 App</h2>
+      <p>不能。转写与切片需要 App 留在前台，屏幕会保持常亮。两小时视频通常一到两分钟完成；转写结果与切片方案都会保存，中断后重开项目会从断点继续，不会重头再来。</p>
+    </section>
+    <section class="section">
+      <h2>切片播放没有声音</h2>
+      <p>请升级到 1.0 (16) 及以上。早期版本受侧边静音键影响；现在成片播放不再受静音键控制。</p>
+    </section>
+    <section class="section">
+      <h2>字幕不准</h2>
+      <p>App 默认自动识别语言（中文 / 英文）。如果视频以某种语言为主却被识别错，在「设置 → 语音 → 语言」固定为该语言后重开项目，会重新转写。中英混杂的视频以开头第一段有人声的语言为准，这是当前版本的已知限制。</p>
+    </section>
+    <section class="section">
+      <h2>提示「此设备不支持该语言」或要下载语音模型</h2>
+      <p>语音模型由系统下载到本机，第一次需要联网；在「设置 → 语音」里可以看到状态并手动下载。iOS 模拟器没有语音识别能力，请在真机使用。</p>
+    </section>
+    <section class="section">
+      <h2>怎么删除数据</h2>
+      <p>首页项目列表左滑删除，会连同视频副本与已导出的成片一起删除。在设置里清空密钥即从钥匙串移除。卸载 App 删除全部本地数据。</p>
+    </section>
+    <section class="section">
+      <h2>源代码</h2>
+      <p><a href="https://github.com/lijiaaaaa-bot/liveslice-ios">github.com/lijiaaaaa-bot/liveslice-ios</a></p>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p>片刻 AI · Bundle ID: com.jiajiali.liveslice</p>
+    </div>
+  </footer>
+</body>
+</html>
