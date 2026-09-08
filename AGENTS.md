@@ -1,4 +1,4 @@
-# Agent Entry Rules — liveslice-ios
+# Agent Entry Rules — topicut-ios
 
 ## Read first, in this order
 

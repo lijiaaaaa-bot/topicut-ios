@@ -1,4 +1,4 @@
-# liveslice-ios
+# topicut-ios
 
 端侧 AI 视频切片 App「Topicut」（内部 target：`LiveSlice`，bundle `com.jiajiali.liveslice`，iOS 26；曾名 LiveSlice / 片刻 AI，见 ADR-0021）及其 Swift 包。1.0.0 的完整链路：
 
@@ -8,7 +8,7 @@
 → 保存到相册
 ```
 
-隐私政策与用户支持页由 `gh-pages` 分支托管：<https://lijiaaaaa-bot.github.io/liveslice-ios/>。
+隐私政策与用户支持页由 `gh-pages` 分支托管：<https://lijiaaaaa-bot.github.io/topicut-ios/>。
 
 判断「有什么 / 没什么」只看 `docs/ARCHITECTURE.yaml`，不看本 README 的语气。
 

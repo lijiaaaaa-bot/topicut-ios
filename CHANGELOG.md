@@ -7,7 +7,9 @@ EDL `schema_version` changes are listed under their own heading in each release.
 
 ### Changed
 - Product name is `Topicut` (ADR-0021): App Store name, home-screen label, site and docs. Internal
-  target `LiveSlice`, bundle ID `com.jiajiali.liveslice` and the repository name are unchanged.
+  target `LiveSlice` and bundle ID `com.jiajiali.liveslice` are unchanged.
+- GitHub repository renamed `liveslice-ios` → `topicut-ios`; the Pages site moved to
+  `https://lijiaaaaa-bot.github.io/topicut-ios/` and App Store Connect URLs were updated (ADR-0021 addendum).
 
 ### Fixed
 - A project sliced by build 13–14 (stored key `deepseek-chat|…`) no longer re-slices once after
