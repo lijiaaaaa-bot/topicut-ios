@@ -62,7 +62,7 @@ implemented:
   - path: Sources/LiveSliceCore/DeepSeekClient.swift
     status: implemented
     module: LiveSliceCore
-    purpose: OpenAI-compatible chat client over URLSession (any endpoint speaking the chat/completions protocol; default DeepSeek, model deepseek-v4-flash); key from DEEPSEEK_API_KEY (CLI) or Keychain (app); returns LLMUsage (usage required; prompt_cache_hit_tokens kept when the server sends it)
+    purpose: OpenAI-compatible chat client over URLSession (any endpoint speaking the chat/completions protocol; default DeepSeek, model deepseek-v4-flash); key from DEEPSEEK_API_KEY (CLI) or Keychain (app); returns LLMUsage (usage required; prompt_cache_hit_tokens kept when the server sends it); every request disables thinking mode in both dialects (ADR-0020)
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift

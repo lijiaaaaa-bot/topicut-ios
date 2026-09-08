@@ -21,6 +21,8 @@ public final class SliceSession {
     public private(set) var startedAt: Date?
     /// Locale actually used for the current/last transcription (after automatic detection).
     public private(set) var activeLocaleIdentifier: String?
+    /// The AI service the slicing request went to (preset name or host), for the wait screen.
+    public private(set) var slicingService: String?
     /// Saved projects, newest first; refreshed after every store change.
     public private(set) var projects: [ProjectRecord] = []
 
@@ -156,6 +158,7 @@ public final class SliceSession {
             if !PipelineReuse.sliceIsCurrent(record, transcriptCurrent: transcriptCurrent, key: sliceKey) {
                 try discardSlice(of: &record)
                 let configuration = try settings.deepSeekConfiguration()
+                slicingService = settings.servicePreset?.name ?? configuration.baseURL.host() ?? settings.baseURL
                 stage = .slicing
                 record.document = try await dependencies.slice(srt, configuration)
                 record.slicedWith = sliceKey

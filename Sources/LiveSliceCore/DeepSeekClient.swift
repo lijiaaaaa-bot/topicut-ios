@@ -129,10 +129,26 @@ public struct DeepSeekClient: Sendable {
         String(decoding: data.prefix(500), as: UTF8.self)
     }
 
+    /// Thinking mode is switched off in both dialects the presets speak: DeepSeek's own
+    /// `thinking.type` and the `enable_thinking` flag used by SiliconFlow / Bailian (Qwen). The
+    /// slicer wants one direct JSON answer at a controlled temperature; a chain of thought over a
+    /// two-hour transcript runs for minutes with no bytes on the wire and ignores `temperature`
+    /// (ADR-0020). Servers that reject unknown fields answer 400, which surfaces as-is.
     struct ChatRequestBody: Encodable {
+        struct Thinking: Encodable {
+            let type: String
+        }
+
         let model: String
         let messages: [ChatMessage]
         let temperature: Double
+        let thinking = Thinking(type: "disabled")
+        let enableThinking = false
+
+        enum CodingKeys: String, CodingKey {
+            case model, messages, temperature, thinking
+            case enableThinking = "enable_thinking"
+        }
     }
 
     struct ChatResponseBody: Decodable {

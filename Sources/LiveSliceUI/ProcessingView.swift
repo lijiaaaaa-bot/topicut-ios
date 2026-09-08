@@ -37,6 +37,11 @@ struct ProcessingView: View {
         }
     }
 
+    /// What the spinner is waiting on: one request that returns in one piece, so no fraction exists.
+    private func slicingHint(_ service: String) -> String {
+        "整段文字已发给 \(service)，等它一次读完再回复。两小时视频通常 1–2 分钟；超过 5 分钟没有回复会报错。"
+    }
+
     private var localeLabel: String? {
         guard let id = session.activeLocaleIdentifier else { return nil }
         return Locale.current.localizedString(forIdentifier: id) ?? id
@@ -59,6 +64,15 @@ struct ProcessingView: View {
                     .padding(.top, 30)
                 elapsed
                     .padding(.top, 6)
+                if case .slicing = session.stage, let service = session.slicingService {
+                    Text(slicingHint(service))
+                        .font(.footnote)
+                        .foregroundStyle(StudioTheme.muted.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 14)
+                        .padding(.horizontal, 12)
+                        .transition(.opacity)
+                }
                 Spacer()
                 steps
                 Text("请保持 App 打开")

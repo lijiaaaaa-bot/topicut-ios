@@ -6,6 +6,11 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Fixed
+- Slicing no longer hangs on "正在找话题" for minutes. `deepseek-v4-flash` (the default since
+  ADR-0018) thinks at high effort by default, which over a two-hour transcript means minutes of
+  reasoning before the first byte; every request now sends `thinking: {type: disabled}` and
+  `enable_thinking: false` (ADR-0020). The wait screen names the service the text went to and
+  says what to expect while the spinner turns.
 - Preview playback no longer goes through a video composition. The composition track carries the
   source's own transform and the player layer scales it, so the stage shows the decoded frames
   with no compositor pass; scaling to the 1920 cap and burning captions stay export-only. This

@@ -34,6 +34,10 @@ struct DeepSeekClientTests {
         #expect(body?["model"] as? String == "test-model")
         #expect(body?["temperature"] as? Double == 0.3)
         #expect((body?["messages"] as? [[String: String]])?.first?["content"] == "hi")
+        // Thinking mode off in both dialects (ADR-0020): DeepSeek V4 reasons for minutes over a long
+        // transcript before its first byte and ignores temperature while doing so.
+        #expect((body?["thinking"] as? [String: String]) == ["type": "disabled"])
+        #expect(body?["enable_thinking"] as? Bool == false)
     }
 
     @Test func returnsAssistantContent() async throws {
