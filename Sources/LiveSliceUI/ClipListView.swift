@@ -96,8 +96,14 @@ struct ClipListView: View {
             ClipDetailView(
                 editor: openedEditor,
                 sourceURL: result.sourceURL,
-                onScrub: { scrubSeconds = $0 },
-                onPreview: { previewClip = $0 },
+                onScrub: { seconds in
+                    scrubSeconds = seconds
+                    preview = .loading
+                },
+                onPreview: { clip in
+                    previewClip = clip
+                    preview = .loading
+                },
                 onCommit: { document, touched, selected in
                     try session.applyEditedDocument(document, clearingExportIDs: touched)
                     selectedID = selected ?? session.result?.document.clips.first?.id
