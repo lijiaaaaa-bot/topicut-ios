@@ -138,7 +138,7 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 - 状态: 已采纳，已实现（2026-09-12）
 - 决策: 在不改 2.0 引擎（金句、成片样式、竖屏跟人、awaitingSlice、EDL 裁切/合并、LiJiaKit、taste 进 PipelineReuse）的前提下，把工作台外壳收成效果图的三层。（1）成片主面只有预览、话题/金句列表、保存到相册；工具栏只留裁切（剪刀）和成片样式（滑块）。裁切滑条、口味面板、竖屏拖点都不出现在主面。（2）EDL 裁切/合并是中大号半屏：胶片时间轴、≥44pt 手柄、与下一条合并、丢弃、完成。拖动手柄只改草稿预览；完成才写入 EDL；丢弃或下滑关闭丢掉草稿。（3）切片工作室仍是转写后、付费前的全屏门闩：三张密度卡 + 亮点长度 chips + 底部开始切片。工作台用话题栏溢出菜单重新打开，不再占第三个工具栏图标。（4）成片工作室主路径是预设卡 + 画幅 chips；自由旋钮和自然语言描述收进「高级」。手机竖屏拖点改在该工作室预览上操作。
 - 理由: 用户锁定的效果图是干净主面 + 半屏裁切 + 切片工作室三卡。主面上堆叠工作室控件、裁切垫和内联口味，是把 2.0 能力做成了外壳噪音，而不是能力本身。
-- 后果: `ClipListView` 主面不再挂 `CropFocusPad`；`ClipEditSheet` 改用 `TrimTimeline`/`TrimDraft`；`SliceStudio` 三卡对应 `TopicDensity`（条数仍按时长缩放，卡片不写死 3–5 条）；`ExportLookStudio` 默认不再露出调节/描述页。守卫与 ADR 文化不变。
+- 后果: `ClipListView` 主面不再挂 `CropFocusPad`；`ClipEditSheet` 改用 `TrimTimeline`/`TrimDraft`；`SliceStudio` 三卡对应 `TopicDensity`（条数仍按时长缩放，卡片不写死 3–5 条）；`ExportLookStudio` 默认不再露出调节/描述页。工作台 `ResultTabBar` 只有 话题|金句、用量和溢出「重新切片」，没有标题 chips（会和列表重复、也容易被看成「高亮词」标签）。守卫与 ADR 文化不变。
 
 ## ADR-0028 转写后进入切片工作室，显式开始才调用 AI
 

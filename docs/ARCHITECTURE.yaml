@@ -519,7 +519,7 @@ implemented:
   - path: Sources/LiveSliceUI/ResultTabs.swift
     status: implemented
     module: LiveSliceUI
-    purpose: ResultTab (topics | highlights) + ResultTabBar (话题|金句 + title chips + usage + overflow 重新切片) + StaleHighlightsPanel for documents without highlights (ADR-0022/0030)
+    purpose: ResultTab (topics | highlights) + ResultTabBar (话题|金句 + usage + overflow 重新切片) + StaleHighlightsPanel for documents without highlights (ADR-0022/0030)
     test_exempt: true
     test_exempt_reason: SwiftUI views; the reslice they trigger and the nil-vs-empty highlights they branch on are covered by SliceSessionReuseTests and EDLDocumentTests
     called_by:

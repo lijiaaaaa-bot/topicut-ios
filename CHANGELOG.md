@@ -6,6 +6,8 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
+- Workbench `ResultTabBar` drops the horizontal clip-title chips. The row is 话题|金句, token/cost,
+  and overflow 重新切片; clip titles stay in the list. Caption-style「高亮词」is not on this row.
 - Workbench shell matches the approved 2.0 mockups (ADR-0030): main surface is preview / 话题·金句 /
   list / 保存到相册; toolbar is edit + look only. Phone-portrait crop leaves the stage (drag lives
   in 成片工作室). Edit is a medium/large sheet with ≥44pt `TrimTimeline` handles; **完成** writes

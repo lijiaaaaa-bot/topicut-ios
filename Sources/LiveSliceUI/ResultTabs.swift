@@ -1,6 +1,7 @@
 // Why: the workbench shows two lists from one slicing call — complete topics and short highlights
-// (ADR-0022). The bar is 话题|金句 plus title chips; 重新切片 lives in the overflow, not a toolbar
-// glyph (ADR-0030). Old projects without highlights still get one honest panel and one paid button.
+// (ADR-0022). The bar is 话题|金句, token/cost, and an overflow 重新切片 (ADR-0030). Clip titles
+// stay in the list below, not as a second chip row. Old projects without highlights still get
+// one honest panel and one paid button.
 
 import LiveSliceCore
 import SwiftUI
@@ -25,20 +26,18 @@ enum ResultTab: Hashable {
     }
 }
 
-/// Segmented 话题|金句, clip-title chips, usage, overflow 重新切片.
+/// Segmented 话题|金句, usage, overflow 重新切片. No title chips (they duplicated the list).
 struct ResultTabBar: View {
     let document: EDLDocument
     let slicedWith: String?
     @Binding var tab: ResultTab
-    let selectedID: String
-    let onSelect: (String) -> Void
     let onReslice: () -> Void
     var sliceTasteStale: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
             segmented
-            chipStrip
+            Spacer(minLength: 8)
             usage
             overflow
         }
@@ -80,34 +79,6 @@ struct ResultTabBar: View {
         .accessibilityLabel(t.title)
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityValue(pillValue(t.clips(in: document)?.count))
-    }
-
-    private var chipStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(tab.clips(in: document) ?? [], id: \.id) { clip in
-                    chip(clip)
-                }
-            }
-        }
-    }
-
-    private func chip(_ clip: EDLClip) -> some View {
-        let on = clip.id == selectedID
-        return Button {
-            onSelect(clip.id)
-        } label: {
-            Text(clip.title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(on ? .white : StudioTheme.muted)
-                .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(on ? StudioTheme.raised : Color.white.opacity(0.06), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(clip.title)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     @ViewBuilder

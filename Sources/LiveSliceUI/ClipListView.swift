@@ -59,7 +59,6 @@ struct ClipListView: View {
                 .containerRelativeFrame(.vertical) { height, _ in height * 0.42 }
             ResultTabBar(
                 document: result.document, slicedWith: result.slicedWith, tab: $tab,
-                selectedID: clip.id, onSelect: selectClip,
                 onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
             )
             list(result: result, clips: clips, clip: clip, rationaleTap: { showRationale = true })
@@ -75,7 +74,6 @@ struct ClipListView: View {
             let lists = VStack(spacing: 12) {
                 ResultTabBar(
                     document: result.document, slicedWith: result.slicedWith, tab: $tab,
-                    selectedID: clip.id, onSelect: selectClip,
                     onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
                 )
                 list(result: result, clips: clips, clip: clip, rationaleTap: nil)
