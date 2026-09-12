@@ -31,6 +31,24 @@ public struct SessionResult: Equatable, Sendable {
     /// `model|baseURL` that produced the EDL (nil on records from before provenance was stored);
     /// tells the cost estimate whether the call went to a service with a known price sheet.
     public let slicedWith: String?
+
+    /// Same session, new EDL. Used after in-app edits; cues and slice provenance stay put.
+    public func replacingDocument(_ document: EDLDocument) -> SessionResult {
+        SessionResult(
+            projectID: projectID, sourceURL: sourceURL, cues: cues,
+            document: document, localeIdentifier: localeIdentifier, slicedWith: slicedWith
+        )
+    }
+}
+
+public enum SliceSessionError: Error, Equatable, Sendable, LocalizedError {
+    case noResultToEdit
+
+    public var errorDescription: String? {
+        switch self {
+        case .noResultToEdit: "没有可编辑的切片结果"
+        }
+    }
 }
 
 public struct SessionDependencies: Sendable {

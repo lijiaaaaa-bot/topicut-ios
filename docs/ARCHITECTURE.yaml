@@ -80,16 +80,34 @@ implemented:
     called_by:
       - Sources/LiveSliceCore/LLMResponseParser.swift
       - Sources/LiveSliceCore/EDLDocument.swift
+      - Sources/LiveSliceCore/EDLEdit.swift
+      - Sources/LiveSliceCore/EDLEditor.swift
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/LiveSliceRender/ClipTimeline.swift
   - path: Sources/LiveSliceCore/EDLDocument.swift
     status: implemented
     module: LiveSliceCore
-    purpose: versioned EDL JSON document; encode/decode with schema_version check; `withUniqueClipIDs` relabels documents saved before the unique-id rule
+    purpose: versioned EDL JSON document; encode/decode with schema_version check; `withUniqueClipIDs` relabels documents saved before the unique-id rule; `replacingClips` is the in-app edit write
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/LiveSliceCore/EDLEdit.swift
+      - Sources/LiveSliceCore/EDLEditor.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift
       - Sources/LiveSliceUI/SliceSession.swift
+  - path: Sources/LiveSliceCore/EDLEdit.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: trim / discard / merge-with-next on an EDL; throws on empty or out-of-range results; no ASR or DeepSeek
+    called_by:
+      - Sources/LiveSliceCore/EDLEditor.swift
+      - Sources/LiveSliceUI/TrimTimelineView.swift
+  - path: Sources/LiveSliceCore/EDLEditor.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: in-memory sheet session over EDLEdit; trim applies against the last structural base so expanding a handle can restore a cut
+    called_by:
+      - Sources/LiveSliceUI/ClipDetailView.swift
+      - Sources/LiveSliceUI/ClipListView.swift
   - path: Sources/LiveSliceCore/TopicSlicer.swift
     status: implemented
     module: LiveSliceCore
@@ -219,7 +237,7 @@ implemented:
   - path: Sources/LiveSliceUI/SessionTypes.swift
     status: implemented
     module: LiveSliceUI
-    purpose: SessionStage, ClipRenderState, SessionResult (+ slicedWith provenance for the cost estimate), SessionDependencies (injected pipeline closures) and ErrorText (LocalizedError description, else typed case + message)
+    purpose: SessionStage, ClipRenderState, SessionResult (+ slicedWith provenance for the cost estimate, replacingDocument after an in-app edit), SessionDependencies (injected pipeline closures), SliceSessionError, and ErrorText (LocalizedError description, else typed case + message)
     called_by:
       - Sources/LiveSliceUI/SliceSession.swift
       - Sources/LiveSliceUI/LiveDependencies.swift
@@ -229,7 +247,7 @@ implemented:
   - path: Sources/LiveSliceUI/SliceSession.swift
     status: implemented
     module: LiveSliceUI
-    purpose: observable pipeline state machine (prepare model -> transcribe -> slice -> ready; per-clip export on save, cancellation -> idle); fingerprints imports and reopens the existing project for a video already imported, otherwise adopts it as a new project; on every run reuses a saved step only while PipelineReuse says its inputs are unchanged, else reruns it and everything after it (dropping stale exports); relabels duplicate clip ids in older records; restores exports on disk; purges scratch only; errors verbatim
+    purpose: observable pipeline state machine (prepare model -> transcribe -> slice -> ready; per-clip export on save, cancellation -> idle); fingerprints imports and reopens the existing project for a video already imported, otherwise adopts it as a new project; on every run reuses a saved step only while PipelineReuse says its inputs are unchanged, else reruns it and everything after it (dropping stale exports); relabels duplicate clip ids in older records; restores exports on disk; applies in-app EDL edits without re-running ASR or DeepSeek and clears stale MP4s for touched clips; purges scratch only; errors verbatim
     called_by:
       - Sources/LiveSliceUI/RootView.swift
       - Sources/LiveSliceUI/HomeView.swift
@@ -266,6 +284,7 @@ implemented:
       - Sources/LiveSliceUI/ClipListView.swift
       - Sources/LiveSliceUI/ClipWorkbenchParts.swift
       - Sources/LiveSliceUI/ClipDetailView.swift
+      - Sources/LiveSliceUI/TrimTimelineView.swift
       - Sources/LiveSliceUI/SettingsView.swift
   - path: Sources/LiveSliceUI/ProcessingView.swift
     status: implemented
@@ -327,7 +346,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench (capped-height instant preview in the source aspect ratio, one line with the slicing call's token count and - for DeepSeek - its estimated charge, table of every clip with full titles, export-on-save with progress in the button, in-button save confirmation + haptics) + TimeText
+    purpose: workbench (capped-height instant preview in the source aspect ratio, one line with the slicing call's token count and - for DeepSeek - its estimated charge, table of every clip with full titles, export-on-save with progress in the button, in-button save confirmation + haptics, selected row opens the EDL editor sheet) + TimeText
     test_exempt: true
     test_exempt_reason: SwiftUI view; TimeText formatting is covered by TimeTextTests
     called_by:
@@ -335,7 +354,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens rationale), ClipPoster
+    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens the trim sheet), ClipPoster
     test_exempt: true
     test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests
     called_by:
@@ -343,11 +362,19 @@ implemented:
   - path: Sources/LiveSliceUI/ClipDetailView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: read-only rationale sheet for one clip (reason, score, kept/removed ranges, segment bar)
+    purpose: phone-first EDL editor sheet (trim handles, 与下一条合并 when valid, 丢弃, 完成 persists via SliceSession)
     test_exempt: true
-    test_exempt_reason: SwiftUI view; the EDL invariants it displays are covered by EDLClipTests
+    test_exempt_reason: SwiftUI view; trim / merge / discard are covered by EDLEditTests, EDLEditorTests and SliceSessionEditingTests
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/TrimTimelineView.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: filmstrip + 44pt in/out handles + kept/removed bar for the editor sheet
+    test_exempt: true
+    test_exempt_reason: SwiftUI drawing; time-to-x mapping is TrimWindow in EDLEditTests
+    called_by:
+      - Sources/LiveSliceUI/ClipDetailView.swift
   - path: Sources/LiveSliceUI/SettingsView.swift
     status: implemented
     module: LiveSliceUI
@@ -394,10 +421,6 @@ planned:
     status: planned
     tech: []
     note: multiple renders (durations, caption styles) of approved clips; depends on renderer.
-  - name: EDL editing in app
-    status: planned
-    tech: []
-    note: trim / merge clips before rendering; today the EDL is read-only in the UI.
   - name: Background rendering
     status: planned
     tech: []

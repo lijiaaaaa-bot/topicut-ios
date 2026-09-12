@@ -194,6 +194,34 @@ public final class SliceSession {
         if FileManager.default.fileExists(atPath: exports.path) { try FileManager.default.removeItem(at: exports) }
     }
 
+    /// Writes an in-app EDL rewrite and drops stale MP4s for the clips that changed. Does not
+    /// re-run transcription or slicing; `slicedWith` stays the key that produced the original EDL.
+    public func applyEditedDocument(_ document: EDLDocument, clearingExportIDs: Set<String>) throws {
+        guard let current = result else { throw SliceSessionError.noResultToEdit }
+        try removeExports(projectID: current.projectID, clipIDs: clearingExportIDs)
+        var record = try store.load(id: current.projectID)
+        record.document = document
+        try store.save(record)
+        result = current.replacingDocument(document)
+        dropRenderState(keeping: Set(document.clips.map(\.id)), idle: clearingExportIDs)
+        refreshProjects()
+    }
+
+    private func removeExports(projectID: String, clipIDs: Set<String>) throws {
+        let directory = outputDirectory.appending(path: projectID)
+        for id in clipIDs {
+            let url = directory.appending(path: Self.exportName(clipID: id))
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    private func dropRenderState(keeping: Set<String>, idle: Set<String>) {
+        for id in idle { renders[id] = .idle }
+        for id in renders.keys where !keeping.contains(id) { renders.removeValue(forKey: id) }
+    }
+
     /// Exports already on disk for this project, keyed back to their clip.
     private func restoredRenders(projectID: String, clips: [EDLClip]) throws -> [String: ClipRenderState] {
         let directory = outputDirectory.appending(path: projectID)
@@ -207,7 +235,8 @@ public final class SliceSession {
         return restored
     }
 
-    private static func exportName(clip: EDLClip) -> String { "\(clip.id).mp4" }
+    private static func exportName(clip: EDLClip) -> String { exportName(clipID: clip.id) }
+    private static func exportName(clipID: String) -> String { "\(clipID).mp4" }
 
     /// Renders one clip of the current result into the project's export directory. Task
     /// cancellation returns the clip to `.idle`; it is not a failure.
@@ -260,5 +289,3 @@ public final class SliceSession {
         try fm.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
     }
 }
-
-/// Human-readable error text that keeps the typed case name (e.g. `missingAPIKey`) visible.

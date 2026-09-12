@@ -68,6 +68,12 @@ public struct EDLDocument: Codable, Equatable, Sendable {
         return EDLDocument(copying: self, clips: try zip(clips, ids).map { try $0.withID($1) })
     }
 
+    /// The same document with a different clip list. Callers must pass clips that already
+    /// satisfy `EDLClip` invariants; this does not re-slice or rewrite ids.
+    public func replacingClips(_ clips: [EDLClip]) -> EDLDocument {
+        EDLDocument(copying: self, clips: clips)
+    }
+
     /// Deterministic, diff-friendly JSON (sorted keys, snake_case, pretty printed).
     public func encode() throws -> Data {
         let encoder = JSONEncoder()

@@ -72,14 +72,14 @@ struct ClipStage: View {
 
 /// The table of contents: every clip as one row — first frame, number, full title, kept duration,
 /// export state — so the whole result is readable without selecting anything. Tapping a row plays
-/// it on the stage; tapping the selected row again opens its rationale.
+/// it on the stage; tapping the selected row again opens the trim sheet.
 struct ClipTable: View {
     let sourceURL: URL
     let clips: [EDLClip]
     let selectedID: String
     let renders: [String: ClipRenderState]
     let select: (String) -> Void
-    let showRationale: () -> Void
+    let showEditor: () -> Void
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -88,7 +88,7 @@ struct ClipTable: View {
                     ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
                         Button {
                             if clip.id == selectedID {
-                                showRationale()
+                                showEditor()
                             } else {
                                 withAnimation(StudioTheme.motion) { select(clip.id) }
                             }
@@ -130,11 +130,6 @@ struct ClipTable: View {
                 }
             }
             Spacer(minLength: 6)
-            if isSelected {
-                Image(systemName: "info.circle")
-                    .font(.body)
-                    .foregroundStyle(StudioTheme.accent)
-            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)

@@ -1,142 +1,130 @@
-// Why: the workbench shows the result; this sheet shows why the result looks like that — the
-// model's reason, the score, and the exact kept/removed ranges from the EDL. It is read-only on
-// purpose: editing the EDL in the app is not implemented, so the UI must not offer it.
+// Why: the workbench sheet is where a clip's in/out change, it is dropped, or it is
+// joined to the next one. The EDL is rewritten in memory and written back on 完成;
+// ASR and DeepSeek are not run again.
 
 import LiveSliceCore
 import SwiftUI
 
 struct ClipDetailView: View {
-    let clip: EDLClip
+    let sourceURL: URL
+    var onScrub: (Double) -> Void
+    var onPreview: (EDLClip?) -> Void
+    var onCommit: (EDLDocument, Set<String>, String?) throws -> Void
+
+    @State private var editor: EDLEditor
+    @State private var startSec: Double
+    @State private var endSec: Double
+    @State private var editError: String?
+    @State private var successTick = 0
+    @State private var discardTick = 0
     @Environment(\.dismiss) private var dismiss
+
+    init(
+        editor: EDLEditor, sourceURL: URL,
+        onScrub: @escaping (Double) -> Void,
+        onPreview: @escaping (EDLClip?) -> Void,
+        onCommit: @escaping (EDLDocument, Set<String>, String?) throws -> Void
+    ) {
+        self.sourceURL = sourceURL
+        self.onScrub = onScrub
+        self.onPreview = onPreview
+        self.onCommit = onCommit
+        _editor = State(initialValue: editor)
+        _startSec = State(initialValue: editor.currentClip?.startSec ?? editor.sourceStart)
+        _endSec = State(initialValue: editor.currentClip?.endSec ?? editor.sourceEnd)
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            if let category = clip.category {
-                                Text(category)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(StudioTheme.accent)
-                            }
-                            Spacer()
-                            Text("话题分 \((clip.score * 100).formatted(.number.precision(.fractionLength(0))))")
-                                .font(.caption.bold())
-                                .foregroundStyle(StudioTheme.success)
-                        }
-                        Text(clip.title).font(.headline)
-                        Text(clip.reason)
-                            .font(.subheadline)
-                            .foregroundStyle(StudioTheme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("原视频 \(TimeText.clock(clip.startSec))–\(TimeText.clock(clip.endSec))")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(StudioTheme.muted)
-                        ClipSegmentBar(clip: clip)
-                    }
-                    .studioCard()
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("保留 \(clip.segments.count) 段", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(StudioTheme.success)
-                        ForEach(Array(clip.segments.enumerated()), id: \.offset) { _, segment in
-                            SegmentRow(segment: segment, removed: false)
-                        }
-                    }
-                    .studioCard()
-
-                    if !clip.removedSegments.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("删除 \(clip.removedSegments.count) 段", systemImage: "scissors")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.red)
-                            ForEach(Array(clip.removedSegments.enumerated()), id: \.offset) { _, segment in
-                                SegmentRow(segment: segment, removed: true)
-                            }
-                        }
-                        .studioCard()
-                    }
-
-                    if !clip.tags.isEmpty {
-                        HStack(spacing: 8) {
-                            ForEach(clip.tags, id: \.self) { tag in
-                                Text(tag)
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(StudioTheme.muted)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(StudioTheme.raised, in: Capsule())
-                            }
-                        }
-                    }
+            VStack(spacing: 20) {
+                if let clip = editor.currentClip {
+                    TrimTimelineView(
+                        sourceURL: sourceURL, clip: clip, window: editor.trimWindow,
+                        startSec: $startSec, endSec: $endSec,
+                        onScrub: onScrub, onEnded: applyTrim
+                    )
+                    .padding(.top, 8)
                 }
-                .padding(20)
+                Spacer(minLength: 0)
+                actions
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
             .background(StudioTheme.background)
-            .navigationTitle("剪辑依据")
+            .navigationTitle("修剪视频片段")
             .studioBar()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("完成", action: commit)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(StudioTheme.accent)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
             }
+            .alert("无法编辑", isPresented: Binding(
+                get: { editError != nil },
+                set: { if !$0 { editError = nil } }
+            )) {
+                Button("好", role: .cancel) {}
+            } message: {
+                if let editError { Text(editError) }
+            }
+            .sensoryFeedback(.selection, trigger: Int(startSec.rounded()) * 1_000 + Int(endSec.rounded()))
+            .sensoryFeedback(.success, trigger: successTick)
+            .sensoryFeedback(.warning, trigger: discardTick)
         }
     }
-}
 
-/// Kept ranges drawn against the clip's own span, so gaps are visible at a glance.
-struct ClipSegmentBar: View {
-    let clip: EDLClip
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.08))
-                ForEach(Array(clip.segments.enumerated()), id: \.offset) { _, segment in
-                    Capsule()
-                        .fill(StudioTheme.success)
-                        .frame(width: width(of: segment, in: proxy.size.width))
-                        .offset(x: offset(of: segment, in: proxy.size.width))
+    @ViewBuilder
+    private var actions: some View {
+        HStack(spacing: 12) {
+            if editor.canMergeWithNext {
+                Button {
+                    if apply({ try $0.mergeWithNext() }) { successTick += 1 }
+                } label: {
+                    Label("与下一条合并", systemImage: "puzzlepiece.extension")
                 }
+                .buttonStyle(WorkbenchActionStyle(fill: Color.white.opacity(0.12)))
+            }
+            if editor.currentClip != nil {
+                Button {
+                    if apply({ try $0.discardCurrent() }) { discardTick += 1 }
+                } label: {
+                    Label("丢弃", systemImage: "trash")
+                }
+                .buttonStyle(WorkbenchActionStyle(fill: Color(red: 0.55, green: 0.12, blue: 0.16)))
             }
         }
-        .frame(height: 7)
-        .accessibilityLabel("保留片段分布")
     }
 
-    private func width(of segment: EDLSegment, in totalWidth: CGFloat) -> CGFloat {
-        max(3, totalWidth * (segment.endSec - segment.startSec) / span)
+    private func applyTrim() {
+        _ = apply { try $0.trim(start: startSec, end: endSec) }
     }
 
-    private func offset(of segment: EDLSegment, in totalWidth: CGFloat) -> CGFloat {
-        totalWidth * (segment.startSec - clip.startSec) / span
-    }
-
-    private var span: Double {
-        max(0.001, clip.endSec - clip.startSec)
-    }
-}
-
-struct SegmentRow: View {
-    let segment: EDLSegment
-    let removed: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Text("\(TimeText.clock(segment.startSec)) → \(TimeText.clock(segment.endSec))")
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(removed ? .red : .white)
-                Text(TimeText.compact(segment.endSec - segment.startSec))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(StudioTheme.muted)
-            }
-            if let reason = segment.reason {
-                Text(reason).font(.caption).foregroundStyle(StudioTheme.muted)
-            }
+    private func commit() {
+        do {
+            try onCommit(editor.document, editor.touchedIDs, editor.clipID)
+            successTick += 1
+            dismiss()
+        } catch {
+            editError = ErrorText.describe(error)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func apply(_ body: (inout EDLEditor) throws -> Void) -> Bool {
+        do {
+            var next = editor
+            try body(&next)
+            editor = next
+            if let clip = next.currentClip {
+                startSec = clip.startSec
+                endSec = clip.endSec
+            }
+            onPreview(next.currentClip)
+            return true
+        } catch {
+            editError = ErrorText.describe(error)
+            return false
+        }
     }
 }
