@@ -60,6 +60,11 @@ enum ExportLookText {
 
     static func title(_ style: CaptionStyle) -> String { styleTitle(style) }
     static func note(_ style: CaptionStyle, hasWords: Bool) -> String { styleNote(style, hasWords: hasWords) }
+
+    /// 高亮词 without timings is a typed refusal — the studio must not claim that look is selected.
+    static func canSelect(_ style: CaptionStyle, hasWords: Bool) -> Bool {
+        !style.requiresWordTimings || hasWords
+    }
 }
 
 /// Compatibility alias used by older call sites / tests.

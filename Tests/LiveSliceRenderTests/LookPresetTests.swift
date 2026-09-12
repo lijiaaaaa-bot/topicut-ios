@@ -5,6 +5,8 @@ struct LookPresetTests {
     @Test func phoneHighlightUsesPortraitAndWords() {
         #expect(LookPreset.phoneHighlight.framing == .phonePortrait)
         #expect(LookPreset.phoneHighlight.style == .highlightWord)
+        #expect(LookPreset.phoneHighlight.requiresWordTimings)
+        #expect(!LookPreset.sourceClean.requiresWordTimings)
     }
 
     @Test func fitCleanLetterboxes() {

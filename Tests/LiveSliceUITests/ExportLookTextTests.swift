@@ -25,6 +25,15 @@ struct ExportLookTextTests {
         #expect(ExportLookText.saveTitle(style: .clean, position: .bottom, framing: .phonePortrait).contains(ExportLookText.framingTitle(.phonePortrait)))
     }
 
+    @Test func highlightWordNeedsTimingsAndIsNotSelectableWithoutThem() {
+        #expect(CaptionStyle.highlightWord.requiresWordTimings)
+        #expect(!CaptionStyle.clean.requiresWordTimings)
+        #expect(ExportLookText.canSelect(.highlightWord, hasWords: true))
+        #expect(!ExportLookText.canSelect(.highlightWord, hasWords: false))
+        #expect(ExportLookText.canSelect(.clean, hasWords: false))
+        #expect(ExportLookText.styleNote(.highlightWord, hasWords: false).contains("逐词"))
+    }
+
     @Test func framingTitlesCoverEveryCase() {
         let titles = FramingMode.allCases.map(ExportLookText.framingTitle)
         #expect(Set(titles).count == titles.count)

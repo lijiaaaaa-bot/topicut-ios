@@ -65,6 +65,19 @@ struct PlaybackCaptionsTests {
         #expect(frame.bandSize.height < 80)
     }
 
+    @Test func highlightWordKeepsBackdropWhenOneWordRangeIsOutOfText() throws {
+        let caption = WordCaption(
+            text: "先找", start: 0, end: 2,
+            words: [WordWindow(range: 0..<99, start: 0, end: 2)]
+        )
+        let style = SubtitleStyle(fontSize: 40, bottomInset: 20, horizontalInset: 10, strokeWidth: -3)
+        let image = try #require(try PreviewCaptionPainter.image(
+            captions: .words([caption]), at: 0.5, width: 400, height: 100, style: style
+        ))
+        #expect(image.width == 400)
+        #expect(image.height == 100)
+    }
+
     @Test func highlightWordBandShowsAccentPixelsWhileTheWordIsSpoken() throws {
         let caption = WordCaption(
             text: "先找话题", start: 0, end: 2,

@@ -268,7 +268,7 @@ implemented:
   - path: Sources/LiveSliceRender/PlaybackCaptions.swift
     status: implemented
     module: LiveSliceRender
-    purpose: PlaybackCaptions (none | plain windows | word captions) + PreviewCaptionPainter (rasterizes one band for a composition instant at a CaptionPosition, for the live player overlay; burn-in is a separate export step)
+    purpose: PlaybackCaptions (none | plain windows | word captions) + PreviewCaptionPainter (rasterizes one band for a composition instant; a wordRangeOutOfText accent is skipped so the backdrop stays; burn-in is a separate export step)
     called_by:
       - Sources/LiveSliceRender/ClipRenderer.swift
       - Sources/LiveSliceUI/ClipPlayerView.swift

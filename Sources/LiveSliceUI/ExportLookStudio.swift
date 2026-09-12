@@ -28,6 +28,7 @@ struct ExportLookStudio: View {
     @State private var prompt = ""
     @State private var describeError: String?
     @State private var describing = false
+    @State private var wordGateMessage: String?
 
     var body: some View {
         ZStack {
@@ -52,6 +53,7 @@ struct ExportLookStudio: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { refuseHighlightWithoutWords() }
     }
 
     private var header: some View {
@@ -85,10 +87,14 @@ struct ExportLookStudio: View {
                 ) {
                     apply(preset)
                 }
+                .opacity(preset.requiresWordTimings && !hasWords ? 0.5 : 1)
+            }
+            if let wordGateMessage {
+                wordGate(wordGateMessage)
             }
             DisclosureGroup(isExpanded: $showAdvanced) {
                 LookTunePane(
-                    style: $style, tune: $tune, framing: framing,
+                    style: gatedStyle, tune: $tune, framing: framing,
                     hasWords: hasWords, retranscribe: retranscribe,
                     bandY: bandYBinding, fontScale: fontScaleBinding
                 )
@@ -113,11 +119,49 @@ struct ExportLookStudio: View {
         style == preset.style && framing == preset.framing && tune == preset.tune
     }
 
+    private var gatedStyle: Binding<CaptionStyle> {
+        Binding(
+            get: { style },
+            set: { requested in
+                guard acceptStyle(requested) else { return }
+                style = requested
+            }
+        )
+    }
+
+    private func wordGate(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Button("重新转写", action: retranscribe)
+                .buttonStyle(QuietButtonStyle())
+        }
+    }
+
+    /// Missing words cannot select 高亮词 — keep a safe style and say why (ADR-0005 / 0024).
+    private func acceptStyle(_ requested: CaptionStyle) -> Bool {
+        if !ExportLookText.canSelect(requested, hasWords: hasWords) {
+            wordGateMessage = ExportLookText.styleNote(.highlightWord, hasWords: false)
+            if style.requiresWordTimings { style = .clean }
+            showAdvanced = true
+            return false
+        }
+        wordGateMessage = nil
+        return true
+    }
+
+    private func refuseHighlightWithoutWords() {
+        _ = acceptStyle(style)
+    }
+
     private func apply(_ preset: LookPreset) {
-        style = preset.style
         framing = preset.framing
         tune = preset.tune
         position = nearestPosition(for: preset.tune.bandY)
+        if acceptStyle(preset.style) {
+            style = preset.style
+        }
     }
 
     private func nearestPosition(for bandY: Double) -> CaptionPosition {
@@ -152,10 +196,14 @@ struct ExportLookStudio: View {
         defer { describing = false }
         do {
             let draft = try await onDescribe(prompt)
-            style = draft.style
             framing = draft.framing
             tune = draft.tune
             position = nearestPosition(for: draft.tune.bandY)
+            if acceptStyle(draft.style) {
+                style = draft.style
+            } else {
+                describeError = ExportLookText.styleNote(.highlightWord, hasWords: false)
+            }
         } catch {
             describeError = ErrorText.describe(error)
         }

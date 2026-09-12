@@ -20,6 +20,10 @@ EDL `schema_version` changes are listed under their own heading in each release.
   not a black card with `CaptionSample`.
 
 ### Fixed
+- 成片样式「高亮词」no longer bricks the preview. Caption paint errors stay a small banner (video
+  keeps playing). Selecting highlightWord / 竖屏跟人 · 高亮词 without word timings is refused —
+  style stays `.clean` and the existing「重新转写」copy is shown. A single `wordRangeOutOfText`
+  accent skip keeps the backdrop for that frame.
 - Live preview captions (ADR-0024): the player overlay scales font to the on-screen band. Build 23
   used the full export font on a phone-sized band, so 高亮词 crops were empty and the stage showed
   `wordRangeOutOfText` instead of the clip.

@@ -56,7 +56,10 @@ struct LookTunePane: View {
                 ExportLookText.styleTitle($0)
             }
             .padding(.horizontal, -20)
-            if style == .highlightWord, !hasWords {
+            if !hasWords {
+                Text(ExportLookText.styleNote(.highlightWord, hasWords: false))
+                    .font(.caption)
+                    .foregroundStyle(.orange)
                 Button("重新转写", action: retranscribe)
                     .buttonStyle(QuietButtonStyle())
             }
