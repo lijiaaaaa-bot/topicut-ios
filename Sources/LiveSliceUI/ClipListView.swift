@@ -17,7 +17,9 @@ struct ClipListView: View {
     @State private var saved: URL?
     @State private var saveError: String?
     @State private var isSaving = false
-    @State private var showRationale = false
+    @State private var openedEditor: EDLEditor?
+    @State private var previewClip: EDLClip?
+    @State private var scrubSeconds: Double?
 
     var body: some View {
         if let result = session.result, let shown = selection(in: result.document.clips) {
@@ -36,7 +38,10 @@ struct ClipListView: View {
 
     private func workbench(result: SessionResult, clips: [EDLClip], clip: EDLClip) -> some View {
         VStack(spacing: 12) {
-            ClipStage(preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec)
+            ClipStage(
+                preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL,
+                posterSeconds: scrubSeconds ?? (previewClip?.startSec ?? clip.startSec)
+            )
                 .id(clip.id)
                 .transition(.opacity)
                 .frame(maxWidth: .infinity)
@@ -46,7 +51,8 @@ struct ClipListView: View {
             }
             ClipTable(
                 sourceURL: result.sourceURL, clips: clips, selectedID: clip.id, renders: displayRenders(clips),
-                select: { selectedID = $0; preview = .loading }, showRationale: { showRationale = true }
+                select: { selectedID = $0; preview = .loading; previewClip = nil },
+                showEditor: { openEditor(result: result, clip: clip) }
             )
             .frame(maxHeight: .infinity)
             actions(for: clip)
@@ -56,27 +62,12 @@ struct ClipListView: View {
         .padding(.bottom, 12)
         .background(StudioTheme.background)
         .animation(StudioTheme.motion, value: clip.id)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { session.reset() } label: {
-                    Image(systemName: "chevron.left")
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                if case .done(let url) = state(of: clip) {
-                    ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-                }
-            }
+        .toolbar { workbenchToolbar(clip: clip) }
+        .task(id: previewIdentity(previewClip ?? clip)) {
+            await buildPreview(result: result, clip: previewClip ?? clip)
         }
-        .task(id: clip.id) {
-            await buildPreview(result: result, clip: clip)
-        }
-        .sheet(isPresented: $showRationale) {
-            ClipDetailView(clip: clip)
-                .preferredColorScheme(.dark)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(StudioTheme.background)
+        .sheet(isPresented: Binding(get: { openedEditor != nil }, set: { if !$0 { closeEditor() } })) {
+            editorSheet(result)
         }
         .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("好", role: .cancel) {}
@@ -85,6 +76,39 @@ struct ClipListView: View {
         }
         .sensoryFeedback(.selection, trigger: selectedID)
         .sensoryFeedback(.success, trigger: saved)
+    }
+
+    @ToolbarContentBuilder
+    private func workbenchToolbar(clip: EDLClip) -> some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button { session.reset() } label: { Image(systemName: "chevron.left") }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            if case .done(let url) = state(of: clip) {
+                ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editorSheet(_ result: SessionResult) -> some View {
+        if let openedEditor {
+            ClipDetailView(
+                editor: openedEditor,
+                sourceURL: result.sourceURL,
+                onScrub: { scrubSeconds = $0 },
+                onPreview: { previewClip = $0 },
+                onCommit: { document, touched, selected in
+                    try session.applyEditedDocument(document, clearingExportIDs: touched)
+                    selectedID = selected ?? session.result?.document.clips.first?.id
+                    closeEditor()
+                }
+            )
+            .preferredColorScheme(.dark)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(StudioTheme.background)
+        }
     }
 
     /// What the slicing call consumed: the server's token count, and the charge when the service's
@@ -167,6 +191,25 @@ struct ClipListView: View {
     private func isSavedCurrent(_ clip: EDLClip) -> Bool {
         if case .done(let url) = state(of: clip) { return saved == url }
         return false
+    }
+
+    private func previewIdentity(_ clip: EDLClip) -> String {
+        "\(clip.id)-\(clip.startSec)-\(clip.endSec)-\(clip.keptDurationSec)"
+    }
+
+    private func openEditor(result: SessionResult, clip: EDLClip) {
+        do {
+            openedEditor = try EDLEditor(document: result.document, clipID: clip.id)
+            previewClip = clip
+        } catch {
+            saveError = ErrorText.describe(error)
+        }
+    }
+
+    private func closeEditor() {
+        openedEditor = nil
+        previewClip = nil
+        scrubSeconds = nil
     }
 
     /// Builds the playable composition for the shown clip; SwiftUI cancels and re-runs it when the

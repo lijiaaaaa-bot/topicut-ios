@@ -138,6 +138,22 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Thumb-zone capsule used by the EDL editor (merge / discard). Not the green save button.
+struct WorkbenchActionStyle: ButtonStyle {
+    var fill: Color
+    var foreground: Color = .white
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(foreground)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(fill, in: Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
 /// Quiet secondary action (text only).
 struct QuietButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

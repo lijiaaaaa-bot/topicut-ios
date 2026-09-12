@@ -23,9 +23,8 @@
   （CATextLayer (not used) 在导出渲染器里不出字）。
 - `LiveSliceKeychain`：用户自己的 AI 服务密钥只存 Keychain。App 内按名字选服务（DeepSeek 默认 / 硅基流动 /
   阿里云百炼 / 自定义 OpenAI 兼容地址），选预设即填好接口地址与模型。
-- `LiveSliceUI`：深色极简 AI 工作台（视频导入、进度环、成片播放器、画幅选择、顺序预渲染、分享、存相册、设置、
-  工作期间屏幕常亮）与
-  可测试的会话状态机 `SliceSession`。
+- `LiveSliceUI`：深色极简 AI 工作台（视频导入、进度环、成片播放器、工作台内修剪 / 丢弃 / 与下一条合并、
+  分享、存相册、设置、工作期间屏幕常亮）与可测试的会话状态机 `SliceSession`。
 - `App/LiveSlice`：iOS App target（`com.jiajiali.liveslice`），由 xcodegen 从 `project.yml` 生成，用于 TestFlight。
 - `liveslice-cli`：Core 的命令行调用者，供 `scripts/live_check.sh` 跑真实 DeepSeek。
 - 100+ 单元测试（Swift Testing）。ASR 与渲染测试走真实框架路径：`say` 合成中文语音 → SpeechAnalyzer；
@@ -35,7 +34,6 @@
 ## 还没有（planned）
 
 - 矩阵变体（同一切片多种时长 / 字幕样式）。
-- App 内编辑 EDL（当前只读）。
 - 真正的后台渲染 / 转写（当前只有屏幕常亮 + 短暂的 UIKit 后台任务；切走太久会中断）。
 
 多租户后端、云端渲染属于 `requires_new_architecture`，不在本仓库演进路径上。

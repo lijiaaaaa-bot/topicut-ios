@@ -5,6 +5,12 @@ EDL `schema_version` changes are listed under their own heading in each release.
 
 ## [Unreleased]
 
+### Added
+- In-app EDL editing on the workbench (ADR-0022): the selected-row sheet trims the clip with
+  large in/out handles, discards it, or merges it with the next clip when that merge is valid.
+  完成 writes the edited EDL through `ProjectStore` and does not re-run ASR or DeepSeek; MP4
+  exports for touched clips are deleted so a stale file cannot pass for the new range.
+
 ### Changed
 - Product name is `Topicut` (ADR-0021): App Store name, home-screen label, site and docs. Internal
   target `LiveSlice` and bundle ID `com.jiajiali.liveslice` are unchanged.
