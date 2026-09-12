@@ -3,6 +3,7 @@
 // decoded; an unknown version is an error, never a guess. See docs/EDL_SCHEMA.md.
 
 import Foundation
+import LLMKit
 
 public enum EDLDocumentError: Error, Equatable, Sendable {
     case missingSchemaVersion
@@ -35,10 +36,21 @@ public struct EDLDocument: Codable, Equatable, Sendable {
     public let clips: [EDLClip]
     /// Optional since schema 1 (added without a bump): documents produced before it decode with `nil`.
     public let llm: LLMUsage?
+    /// Short quotable moments from the same call (ADR-0022). `nil` = sliced before highlights existed;
+    /// `[]` = the model found none. The UI treats the two differently (re-slice offer vs. empty list).
+    public let highlights: [EDLClip]?
+    public let highlightPolicy: HighlightCountPolicy?
+
+    /// Every clip the document carries: topics first, then highlights when the document has them.
+    public var allClips: [EDLClip] {
+        guard let highlights else { return clips }
+        return clips + highlights
+    }
 
     public init(
         generatedAt: Date, strategy: SlicingStrategy, clipCountPolicy: ClipCountPolicy,
-        transcript: EDLTranscriptInfo, clips: [EDLClip], llm: LLMUsage?
+        transcript: EDLTranscriptInfo, clips: [EDLClip], llm: LLMUsage?,
+        highlights: [EDLClip]? = nil, highlightPolicy: HighlightCountPolicy? = nil
     ) {
         self.schemaVersion = Self.currentSchemaVersion
         self.generatedAt = generatedAt.ISO8601Format()
@@ -47,9 +59,11 @@ public struct EDLDocument: Codable, Equatable, Sendable {
         self.transcript = transcript
         self.clips = clips
         self.llm = llm
+        self.highlights = highlights
+        self.highlightPolicy = highlightPolicy
     }
 
-    private init(copying other: EDLDocument, clips: [EDLClip]) {
+    private init(copying other: EDLDocument, clips: [EDLClip], highlights: [EDLClip]?) {
         schemaVersion = other.schemaVersion
         generatedAt = other.generatedAt
         strategy = other.strategy
@@ -57,6 +71,31 @@ public struct EDLDocument: Codable, Equatable, Sendable {
         transcript = other.transcript
         self.clips = clips
         llm = other.llm
+        self.highlights = highlights
+        highlightPolicy = other.highlightPolicy
+    }
+
+    /// Replaces one clip (topic or highlight) by id. Throws if the id is unknown.
+    public func replacingClip(_ clip: EDLClip) throws -> EDLDocument {
+        if let i = clips.firstIndex(where: { $0.id == clip.id }) {
+            var next = clips
+            next[i] = clip
+            return EDLDocument(copying: self, clips: next, highlights: highlights)
+        }
+        if var highlights, let i = highlights.firstIndex(where: { $0.id == clip.id }) {
+            highlights[i] = clip
+            return EDLDocument(copying: self, clips: clips, highlights: highlights)
+        }
+        throw EDLDocumentError.invalidJSON("unknown clip id \(clip.id)")
+    }
+
+    /// Rebuilds the document with explicit topic/highlight arrays (merge / bulk edit).
+    public func replacingAllClips(_ clips: [EDLClip], highlights: [EDLClip]?) -> EDLDocument {
+        EDLDocument(copying: self, clips: clips, highlights: highlights)
+    }
+
+    private init(copying other: EDLDocument, clips: [EDLClip]) {
+        self.init(copying: other, clips: clips, highlights: other.highlights)
     }
 
     /// The same document with clip ids renumbered by `EDLClip.uniqueIDs`. Documents written before
@@ -96,7 +135,7 @@ public struct EDLDocument: Codable, Equatable, Sendable {
         } catch let error as DecodingError {
             throw EDLDocumentError.invalidJSON(String(describing: error))
         }
-        for clip in document.clips {
+        for clip in document.allClips {
             try clip.validateInvariants()
         }
         return document

@@ -4,6 +4,7 @@
 // Exit codes: 0 success, 1 pipeline error (message on stderr), 2 usage / missing API key.
 
 import Foundation
+import LLMKit
 import LiveSliceCore
 
 @main
@@ -66,6 +67,7 @@ struct LiveSliceCLI {
     static func summary(_ document: EDLDocument, model: String, output: String?) -> String {
         var lines = [
             "schema_version=\(document.schemaVersion) model=\(model) domain=\(document.strategy.domain) clips=\(document.clips.count) "
+                + "highlights=\(highlightCount(document)) "
                 + "policy=\(document.clipCountPolicy.minClips)~\(document.clipCountPolicy.maxClips) "
                 + "(hard \(document.clipCountPolicy.hardMaxClips), \(document.clipCountPolicy.durationMinutes) min)",
         ]
@@ -81,8 +83,19 @@ struct LiveSliceCLI {
             if let category = clip.category { line += " [\(category)]" }
             lines.append(line + " \(clip.title)")
         }
+        if let highlights = document.highlights {
+            for quote in highlights {
+                lines.append("  \(quote.id) \(quote.start)-\(quote.end) score=\(quote.score) kept=\(Int(quote.keptDurationSec))s \(quote.title)")
+            }
+        }
         if let output { lines.append("written: \(output)") }
         return lines.joined(separator: "\n")
+    }
+
+    /// "none" for a document written before highlights existed, else the count (0 = model found none).
+    static func highlightCount(_ document: EDLDocument) -> String {
+        guard let highlights = document.highlights else { return "none" }
+        return String(highlights.count)
     }
 
     static func fail(_ message: String, code: Int32) {

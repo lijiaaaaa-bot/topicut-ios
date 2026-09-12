@@ -5,17 +5,32 @@ import Foundation
 
 public enum TopicCompletePrompt {
     /// System prompt for topic-complete slicing, parameterised by clip-count policy and domain.
-    public static func system(policy: ClipCountPolicy, domain: String = "general") -> String {
+    public static func system(policy: ClipCountPolicy, highlights: HighlightCountPolicy, domain: String = "general") -> String {
         [
             header(policy: policy, domain: domain),
             topicSplitting(domain: domain),
             weakTopics(policy: policy),
             interactionBoundaries,
             completeness,
+            highlightsSection(highlights),
             categories(domain: domain),
             outputFormat(domain: domain),
-            rules(policy: policy),
+            rules(policy: policy, highlights: highlights),
         ].joined(separator: "\n\n")
+    }
+
+    /// Second product of the same call (ADR-0022): short quotable moments, independent of the topic list.
+    private static func highlightsSection(_ h: HighlightCountPolicy) -> String {
+        """
+        金句短片（highlights，与上面的完整话题切片并列输出，互不替代）：
+        - 从全场挑出 \(h.minHighlights)~\(h.maxHighlights) 条最值得单独传播的短片，每条 \(h.minSeconds)~\(h.maxSeconds) 秒
+        - 一条金句 = 一个完整表达的观点、判断、故事转折或有力结论，前后带上让人听懂所需的最少语境；不是话题的压缩版
+        - 可以落在某条话题切片内部，也可以落在没有进入话题切片的段落；金句之间不得重叠
+        - 起点是完整句的第一个字，终点是该句或该段收束处；同样不得包含互动壳、寒暄、引导关注
+        - 单句不足 \(h.minSeconds) 秒时向前后扩到听懂所需的语境，而不是只留一句孤零零的话
+        - 每条给出 title（可直接作短视频标题）、reason（为何值得单独发）、score（传播价值 0~1）
+        - 只挑真正有力的；数量不足建议范围时宁缺毋滥，输出空数组也合法
+        """
     }
 
     /// User-turn intro placed before the transcript.
@@ -35,7 +50,7 @@ public enum TopicCompletePrompt {
         let role = domain == "military_news" ? "军事新闻直播切片助手" : "长视频/直播切片助手"
         return """
         你是\(role)，负责「完整话题切片」（topic complete slicing）。
-        根据字幕识别可独立发布的完整\(topicType)，并为每个话题输出可直接发布的竖屏切片计划。
+        根据字幕识别可独立发布的完整\(topicType)，并为每个话题输出可直接发布的切片计划；同一次输出里另附一组金句短片（见下文）。
         只输出 JSON，不要 markdown 代码块，不要其它说明文字。
 
         核心目标（按优先级）：
@@ -176,14 +191,30 @@ public enum TopicCompletePrompt {
                 }
               ]
             }
+          ],
+          "highlights": [
+            {
+              "title": "金句短片标题_01",
+              "reason": "为何这一句值得单独传播",
+              "start": "HH:MM:SS.mmm",
+              "end": "HH:MM:SS.mmm",
+              "mode": "continuous",
+              "score": 0.0到1.0,
+              "category": "金句",
+              "tags": ["金句"],
+              "segments": [{"start": "HH:MM:SS.mmm", "end": "HH:MM:SS.mmm", "keep_reason": "完整表达"}],
+              "removed_segments": []
+            }
           ]
         }
         """
     }
 
-    private static func rules(policy: ClipCountPolicy) -> String {
+    private static func rules(policy: ClipCountPolicy, highlights: HighlightCountPolicy) -> String {
         """
         规则：
+        - 顶层必须同时有 frameworks（完整话题）与 highlights（金句短片）两个数组；highlights 可以为空数组，但键不能缺
+        - highlights 每条使用与 slice 相同的字段；category 固定为「金句」，时长以 \(highlights.minSeconds)~\(highlights.maxSeconds) 秒为准
         - 先识别 broad 主题块，再按完整子话题输出切片；每个子话题一条（或同一逻辑因果链合并为一条）
         - 条数范围 \(policy.minClips)~\(policy.maxClips)（尽量不超出 \(policy.hardMaxClips)）指导粒度：合并相近子话题或拆分过宽 clip，而非硬凑固定条数
         - 单条话题切片允许较长，以完整话题链为准；短但完整且独立可懂的小话题也允许

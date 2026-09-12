@@ -22,13 +22,22 @@ struct ClipStage: View {
     let aspect: CGFloat
     let sourceURL: URL
     let posterSeconds: Double
+    let captionStyle: CaptionStyle
+    let captionTune: CaptionTune
+    let clipID: String
+    var cropFocus: CGPoint? = nil
+    var cropZoom: CGFloat = 1
+    var showCropPad: Bool = false
+    var onCropChange: ((CGPoint) -> Void)? = nil
+    var onCropZoom: ((CGFloat) -> Void)? = nil
+    var onCropReset: (() -> Void)? = nil
 
     var body: some View {
         ZStack {
             Color.black
             switch preview {
             case .ready(let preview):
-                ClipPlayerView(preview: preview)
+                ClipPlayerView(preview: preview, style: captionStyle, tune: captionTune, clipID: clipID)
                     .transition(.opacity)
             case .loading:
                 poster(dim: 0.45)
@@ -46,6 +55,14 @@ struct ClipStage: View {
                         .lineLimit(6)
                 }
                 .padding(16)
+            }
+            if showCropPad {
+                CropFocusPad(
+                    focus: cropFocus, zoom: cropZoom,
+                    onFocus: { onCropChange?($0) },
+                    onZoom: { onCropZoom?($0) },
+                    onReset: { onCropReset?() }
+                )
             }
         }
         .aspectRatio(aspect, contentMode: .fit)
@@ -79,7 +96,8 @@ struct ClipTable: View {
     let selectedID: String
     let renders: [String: ClipRenderState]
     let select: (String) -> Void
-    let showRationale: () -> Void
+    /// Tap on the selected row; nil where the rationale is already on screen (iPad), which also hides the ⓘ.
+    let showRationale: (() -> Void)?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -88,7 +106,7 @@ struct ClipTable: View {
                     ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
                         Button {
                             if clip.id == selectedID {
-                                showRationale()
+                                showRationale?()
                             } else {
                                 withAnimation(StudioTheme.motion) { select(clip.id) }
                             }
@@ -130,7 +148,7 @@ struct ClipTable: View {
                 }
             }
             Spacer(minLength: 6)
-            if isSelected {
+            if isSelected, showRationale != nil {
                 Image(systemName: "info.circle")
                     .font(.body)
                     .foregroundStyle(StudioTheme.accent)
@@ -204,5 +222,29 @@ struct ClipPoster: View {
         } catch {
             return nil
         }
+    }
+}
+
+/// Durations and clock times as people read them, not as timecode.
+enum TimeText {
+    static func clock(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
+    }
+
+    static func duration(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        if total < 60 { return "\(total) 秒" }
+        return "\(total / 60) 分 \(total % 60) 秒"
+    }
+
+    /// Compact Chinese duration used on the workbench pills (`48秒`, `1分02秒`, `7分10秒`).
+    static func compact(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60)
+        if h > 0 { return s == 0 ? "\(h)小时\(m)分" : String(format: "%d小时%d分%02d秒", h, m, s) }
+        if m > 0 { return s == 0 ? "\(m)分" : String(format: "%d分%02d秒", m, s) }
+        return "\(s)秒"
     }
 }

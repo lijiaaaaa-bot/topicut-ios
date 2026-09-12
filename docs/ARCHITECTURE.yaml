@@ -12,10 +12,25 @@ implemented:
   - path: Package.swift
     status: implemented
     kind: manifest
-    purpose: SwiftPM manifest; iOS 26 / macOS 26; Core, ASR, Render, Keychain, UI, TestSupport, cli + tests
+    purpose: SwiftPM manifest; iOS 26 / macOS 26; Core, ASR, Render, Keychain, UI, TestSupport, cli + tests; depends on the sibling LiJiaKit package (product LLMKit) by local path (ADR-0023)
     called_by:
       - scripts/gate.sh
       - project.yml
+  - path: ../LiJiaKit/Package.swift
+    status: implemented
+    kind: external_package
+    purpose: shared LiJiaKit package, checked out next to this repo; `LLMKit` provides DeepSeekClient / DeepSeekConfiguration / ChatMessage / LLMUsage / ChatCompletionResult (OpenAI-compatible chat over URLSession, usage required, thinking disabled in both dialects per ADR-0020) and LLMJSON (fence stripping + outermost object + DecodingError description). Tests live in that repo (`swift test` there); this repo's gate does not re-run them
+    called_by:
+      - Package.swift
+      - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/LiveSliceCore/LLMResponseParser.swift
+      - Sources/LiveSliceCore/EDLDocument.swift
+      - Sources/liveslice-cli/LiveSliceCLI.swift
+      - Sources/LiveSliceUI/LiveDependencies.swift
+      - Sources/LiveSliceUI/AIServicePreset.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SessionTypes.swift
+      - Sources/LiveSliceUI/LLMCost.swift
   - path: project.yml
     status: implemented
     kind: manifest
@@ -47,30 +62,50 @@ implemented:
   - path: Sources/LiveSliceCore/SlicingStrategy.swift
     status: implemented
     module: LiveSliceCore
-    purpose: topic_complete default general strategy (domain configurable) and duration-adaptive clip-count policy
+    purpose: topic_complete default general strategy (domain configurable), duration-adaptive clip-count policy and the highlight-count policy the same call returns (ADR-0022)
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/LiveSliceCore/TopicCompletePrompt.swift
       - Sources/LiveSliceCore/EDLDocument.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift
+  - path: Sources/LiveSliceCore/SlicingTaste.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: TopicDensity + HighlightSpan + SlicingTaste — user knobs that scale clip counts and highlight second bands before the prompt (ADR-0026)
+    called_by:
+      - Sources/LiveSliceCore/TopicSlicer.swift
+      - Sources/LiveSliceCore/SliceTastePreset.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/PipelineReuse.swift
+      - Sources/LiveSliceUI/SliceStudio.swift
+  - path: Sources/LiveSliceCore/SliceTastePreset.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: fixed 切片工作室 tags that write a SlicingTaste pair (ADR-0028)
+    called_by:
+      - Sources/LiveSliceUI/SliceStudio.swift
+  - path: Sources/LiveSliceCore/EDLClipTrim.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: pure head/tail trim of an EDLClip's kept segments for in-app editing without re-slicing (ADR-0026)
+    called_by:
+      - Sources/LiveSliceUI/SliceSessionReruns.swift
+  - path: Sources/LiveSliceCore/EDLClipMerge.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: merge two non-overlapping EDLClips into one compressed_concat clip (ADR-0026)
+    called_by:
+      - Sources/LiveSliceUI/SliceSessionReruns.swift
   - path: Sources/LiveSliceCore/TopicCompletePrompt.swift
     status: implemented
     module: LiveSliceCore
-    purpose: topic-complete system prompt (general-purpose default, domain adaptable)
+    purpose: topic-complete system prompt (general-purpose default, domain adaptable); asks for a second top-level `highlights` array of short quotable moments in the same reply (ADR-0022)
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
-  - path: Sources/LiveSliceCore/DeepSeekClient.swift
-    status: implemented
-    module: LiveSliceCore
-    purpose: OpenAI-compatible chat client over URLSession (any endpoint speaking the chat/completions protocol; default DeepSeek, model deepseek-v4-flash); key from DEEPSEEK_API_KEY (CLI) or Keychain (app); returns LLMUsage (usage required; prompt_cache_hit_tokens kept when the server sends it); every request disables thinking mode in both dialects (ADR-0020)
-    called_by:
-      - Sources/LiveSliceCore/TopicSlicer.swift
-      - Sources/liveslice-cli/LiveSliceCLI.swift
-      - Sources/LiveSliceUI/LiveDependencies.swift
   - path: Sources/LiveSliceCore/LLMResponseParser.swift
     status: implemented
     module: LiveSliceCore
-    purpose: untrusted LLM text -> validated [EDLClip]; invalid ranges throw, never dropped
+    purpose: untrusted LLM text -> validated LLMSlices (topic clips + highlights under framework `highlights`); `highlights` key required, may be empty; invalid ranges throw, never dropped; JSON location and decode-error wording come from LLMKit.LLMJSON, this file owns the EDL shape
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
   - path: Sources/LiveSliceCore/EDLClip.swift
@@ -82,10 +117,19 @@ implemented:
       - Sources/LiveSliceCore/EDLDocument.swift
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/LiveSliceRender/ClipTimeline.swift
+  - path: Sources/LiveSliceCore/TimedToken.swift
+    status: implemented
+    module: LiveSliceCore
+    purpose: one recognized word with its audio time range (Codable); produced by LiveSliceASR, saved by ProjectStore as words.json, consumed by LiveSliceRender for word-highlight captions (ADR-0024)
+    called_by:
+      - Sources/LiveSliceASR/SpeechTranscriptionService.swift
+      - Sources/LiveSliceASR/CueSegmenter.swift
+      - Sources/LiveSliceRender/ClipTimeline.swift
+      - Sources/LiveSliceUI/ProjectStore.swift
   - path: Sources/LiveSliceCore/EDLDocument.swift
     status: implemented
     module: LiveSliceCore
-    purpose: versioned EDL JSON document; encode/decode with schema_version check; `withUniqueClipIDs` relabels documents saved before the unique-id rule
+    purpose: versioned EDL JSON document; encode/decode with schema_version check; optional `highlights` + `highlight_policy` (nil = sliced before ADR-0022); `withUniqueClipIDs` relabels documents saved before the unique-id rule
     called_by:
       - Sources/LiveSliceCore/TopicSlicer.swift
       - Sources/liveslice-cli/LiveSliceCLI.swift
@@ -93,7 +137,7 @@ implemented:
   - path: Sources/LiveSliceCore/TopicSlicer.swift
     status: implemented
     module: LiveSliceCore
-    purpose: the vertical slice (SRT text -> DeepSeek -> EDLDocument)
+    purpose: the vertical slice (SRT text -> LLM -> EDLDocument with clips and highlights from one call; both bounds-checked)
     called_by:
       - Sources/liveslice-cli/LiveSliceCLI.swift
       - Sources/LiveSliceUI/LiveDependencies.swift
@@ -115,7 +159,7 @@ implemented:
   - path: Sources/LiveSliceASR/CueSegmenter.swift
     status: implemented
     module: LiveSliceASR
-    purpose: timed word tokens -> subtitle-shaped SRTCues; chinese/english policies via forLocale
+    purpose: TimedTokens (LiveSliceCore) -> subtitle-shaped SRTCues; chinese/english policies via forLocale
     called_by:
       - Sources/LiveSliceASR/SpeechTranscriptionService.swift
   - path: Sources/LiveSliceASR/SpeechLanguageDetector.swift
@@ -128,7 +172,7 @@ implemented:
   - path: Sources/LiveSliceASR/SpeechTranscriptionService.swift
     status: implemented
     module: LiveSliceASR
-    purpose: SpeechAnalyzer + SpeechTranscriber -> TranscriptionOutcome; auto preference installs both models, probes, then full-file ASR with locale-matched CueSegmenterPolicy
+    purpose: SpeechAnalyzer + SpeechTranscriber -> TranscriptionOutcome (cues + locale + the timed words the cues came from, ADR-0024); auto preference installs both models, probes, then full-file ASR with locale-matched CueSegmenterPolicy
     called_by:
       - Sources/LiveSliceUI/LiveDependencies.swift
       - Sources/LiveSliceUI/SettingsView.swift
@@ -136,25 +180,116 @@ implemented:
   - path: Sources/LiveSliceRender/ClipTimeline.swift
     status: implemented
     module: LiveSliceRender
-    purpose: kept segments -> contiguous output timeline; maps source time (cues) to composition time; pure
+    purpose: kept segments -> contiguous output timeline; maps source time (cues) to composition time; `wordCaptions` rebuilds each cue from its timed words with one output window per spoken word (a cue with no words is a typed error, ADR-0024); pure
     called_by:
       - Sources/LiveSliceRender/ClipRenderer.swift
   - path: Sources/LiveSliceRender/VerticalFrame.swift
     status: implemented
     module: LiveSliceRender
-    purpose: preferredTransform-aware oriented size, fit transform and source render size (source aspect, longest edge capped at 1920); pure
+    purpose: preferredTransform-aware oriented size, fit transform, fillTransform (crop window → canvas for phone portrait), and source render size (source aspect, longest edge capped at 1920); pure
     called_by:
       - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceRender/FaceSampler.swift
+      - Sources/LiveSliceRender/FramingMode.swift
+  - path: Sources/LiveSliceRender/FramingMode.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: export canvas choice — sourceAspect (ADR-0016) or phonePortrait 1080×1920 with face-guided crop (ADR-0025); exportSuffix -9x16
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+      - Sources/LiveSliceUI/ExportLookText.swift
+  - path: Sources/LiveSliceRender/CaptionTune.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: free caption bandY / fontScale / textHex / accentHex shared by studio, preview, burn-in (ADR-0027)
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceRender/PlaybackCaptions.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceRender/LookPreset.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: fixed 成片预设 tags mapping to style + framing + CaptionTune (ADR-0027)
+    called_by:
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceRender/ClipRendererPreview.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: ClipRenderer.preview extension (sourceAspect / phonePortrait / portraitFit WYSIWYG)
+    test_exempt: true
+    test_exempt_reason: preview path covered by ClipRendererTests; extension only hosts the method
+    called_by:
+      - Sources/LiveSliceUI/ClipListViewPreview.swift
+
+  - path: Sources/LiveSliceRender/FaceFocus.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: pure geometry — Vision face boxes → normalised focus; focus + oriented size → largest 9:16 crop window (ADR-0025)
+    called_by:
+      - Sources/LiveSliceRender/FaceSampler.swift
+  - path: Sources/LiveSliceRender/FaceSampler.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: sample 5 frames across a clip span, VNDetectFaceRectanglesRequest, fold boxes through FaceFocus; no faces → nil focus (centre crop by mode); Vision/frame failures are typed errors
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+  - path: Sources/LiveSliceRender/ClipSourceInfo.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: SourceInfo — keep AVURLAsset alive with its tracks so composition export does not fail with -12780
+    test_exempt: true
+    test_exempt_reason: only observable through ClipRenderer export/preview; covered by ClipRendererTests
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+  - path: Sources/LiveSliceRender/CaptionStyle.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: which caption look the live preview shows and (unless none) an export burns in (clean | highlightWord | none) and the file-name suffix that keeps exports of different looks apart (ADR-0024)
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceRender/PlaybackCaptions.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceRender/CaptionPosition.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: where the caption band sits (bottom | middle | top) by replacing bottomInset after SubtitleStyle scaling; file-name suffix -mid/-top; shared by live preview and burn-in (ADR-0024)
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceRender/PlaybackCaptions.swift
+      - Sources/LiveSliceUI/AppSettings.swift
+      - Sources/LiveSliceUI/SliceSession.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceRender/PlaybackCaptions.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: PlaybackCaptions (none | plain windows | word captions) + PreviewCaptionPainter (rasterizes one band for a composition instant at a CaptionPosition, for the live player overlay; burn-in is a separate export step)
+    called_by:
+      - Sources/LiveSliceRender/ClipRenderer.swift
+      - Sources/LiveSliceUI/ClipPlayerView.swift
+  - path: Sources/LiveSliceRender/CaptionLayout.swift
+    status: implemented
+    module: LiveSliceRender
+    purpose: the one Core Text layout every caption image is drawn from (frame, line origins, vertical centring, word rects, backdrop blocks), so a cropped accent word lands exactly on the plain word (ADR-0024)
+    called_by:
+      - Sources/LiveSliceRender/SubtitleRasterizer.swift
   - path: Sources/LiveSliceRender/SubtitleRasterizer.swift
     status: implemented
     module: LiveSliceRender
-    purpose: caption text -> CGImage via Core Text (white fill, black stroke, centred, wrapped); CATextLayer does not draw in export
+    purpose: caption text -> CGImage via Core Text over CaptionLayout: `image` (CaptionLook clean = white fill/black stroke, backdrop = dark rounded block per line) and `wordImage` (one word in the accent colour, cropped to its glyphs, with its band rect) for the highlightWord style (ADR-0024); CATextLayer does not draw in export
     called_by:
       - Sources/LiveSliceRender/SubtitleLayerBuilder.swift
+      - Sources/LiveSliceRender/PlaybackCaptions.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
   - path: Sources/LiveSliceRender/SubtitleLayerBuilder.swift
     status: implemented
     module: LiveSliceRender
-    purpose: Core Animation layer tree with per-cue opacity windows for AVVideoCompositionCoreAnimationTool
+    purpose: Core Animation layer tree for AVVideoCompositionCoreAnimationTool: per-cue opacity windows (clean), or a backdrop layer per caption plus one cropped accent layer per spoken word (highlightWord, ADR-0024)
     test_exempt: true
     test_exempt_reason: only observable through an export; ClipRendererTests pixel-checks the caption band with and without a cue
     called_by:
@@ -162,10 +297,11 @@ implemented:
   - path: Sources/LiveSliceRender/ClipRenderer.swift
     status: implemented
     module: LiveSliceRender
-    purpose: EDLClip + source video -> MP4 in the source's aspect ratio (cut, concat, burnt-in subtitles; one shipped shape, `RenderOptions.standard`) via AVAssetExportSession with progress; `preview` hands the same composition to an AVPlayerItem (no file) plus subtitle windows for a live overlay
+    purpose: EDLClip + source video -> MP4 (cut, concat; FramingMode sourceAspect or phonePortrait face crop; captions per captionStyle + captionPosition) via AVAssetExportSession with progress; `preview` matches export geometry (phonePortrait uses videoComposition so the stage shows the 9:16 crop before save)
     called_by:
       - Sources/LiveSliceUI/LiveDependencies.swift
       - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/LookStudioLivePreview.swift
   # ---- LiveSliceKeychain (ADR-0007) ----
   - path: Sources/LiveSliceKeychain/APIKeyStore.swift
     status: implemented
@@ -184,7 +320,7 @@ implemented:
   - path: Sources/LiveSliceUI/AppSettings.swift
     status: implemented
     module: LiveSliceUI
-    purpose: observable settings (Keychain key, AI service endpoint/model with servicePreset + apply(preset), ASR locale preference auto|fixed); missing key is DeepSeekError.missingAPIKey
+    purpose: observable settings (Keychain key, AI service endpoint/model with servicePreset + apply(preset), ASR locale preference auto|fixed, export captionStyle + captionPosition remembered in defaults - an unknown stored value is a typed error); missing key is DeepSeekError.missingAPIKey
     called_by:
       - Sources/LiveSliceUI/SliceSession.swift
       - Sources/LiveSliceUI/RootView.swift
@@ -192,7 +328,7 @@ implemented:
   - path: Sources/LiveSliceUI/ProjectStore.swift
     status: implemented
     module: LiveSliceUI
-    purpose: ProjectRecord (one imported video + transcript/EDL checkpoints as project.json, each stamped with the inputs that produced it - sourceFingerprint, transcribedWith, slicedWith; nil on older records) and ProjectStore (Application Support/Projects, excluded from backup; adopt/save/load/list/delete/requireSource); unreadable records and missing sources are typed errors
+    purpose: ProjectRecord (one imported video + transcript/EDL checkpoints as project.json, each stamped with the inputs that produced it - sourceFingerprint, transcribedWith, slicedWith; nil on older records) and ProjectStore (Application Support/Projects, excluded from backup; adopt/save/load/list/delete/requireSource; timed words as a separate words.json via saveWords/loadWords/deleteWords so list() never decodes them, ADR-0024); unreadable records and missing sources are typed errors
     called_by:
       - Sources/LiveSliceUI/SliceSession.swift
       - Sources/LiveSliceUI/RootView.swift
@@ -219,7 +355,7 @@ implemented:
   - path: Sources/LiveSliceUI/SessionTypes.swift
     status: implemented
     module: LiveSliceUI
-    purpose: SessionStage, ClipRenderState, SessionResult (+ slicedWith provenance for the cost estimate), SessionDependencies (injected pipeline closures) and ErrorText (LocalizedError description, else typed case + message)
+    purpose: SessionStage, ClipRenderState, SessionResult (+ slicedWith provenance for the cost estimate, + words for word-highlight captions, nil on pre-ADR-0024 projects), SessionDependencies (injected pipeline closures; render takes words + CaptionStyle) and ErrorText (LocalizedError description, else typed case + message)
     called_by:
       - Sources/LiveSliceUI/SliceSession.swift
       - Sources/LiveSliceUI/LiveDependencies.swift
@@ -229,7 +365,7 @@ implemented:
   - path: Sources/LiveSliceUI/SliceSession.swift
     status: implemented
     module: LiveSliceUI
-    purpose: observable pipeline state machine (prepare model -> transcribe -> slice -> ready; per-clip export on save, cancellation -> idle); fingerprints imports and reopens the existing project for a video already imported, otherwise adopts it as a new project; on every run reuses a saved step only while PipelineReuse says its inputs are unchanged, else reruns it and everything after it (dropping stale exports); relabels duplicate clip ids in older records; restores exports on disk; purges scratch only; errors verbatim
+    purpose: observable session shell (projects, renders, reset); pipeline steps live in SliceSessionPipeline / SliceSessionReruns
     called_by:
       - Sources/LiveSliceUI/RootView.swift
       - Sources/LiveSliceUI/HomeView.swift
@@ -237,10 +373,19 @@ implemented:
       - Sources/LiveSliceUI/ClipListView.swift
       - Sources/LiveSliceUI/ClipDetailView.swift
       - Sources/LiveSliceUI/ProjectListView.swift
+  - path: Sources/LiveSliceUI/SliceSessionPipeline.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: run / confirmSlice / finishReady / transcribeStep (ASR then awaitingSlice gate, ADR-0028)
+    test_exempt: true
+    test_exempt_reason: extension of SliceSession; covered by SliceSessionTests and SliceSessionReuseTests
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+      - Sources/LiveSliceUI/SliceSessionReruns.swift
   - path: Sources/LiveSliceUI/ProjectListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: saved projects on the idle screen (first frame, first clip title, clip count + date or the missing step); tap reopens/resumes, swipe deletes
+    purpose: saved projects on the idle screen (first frame, first clip title, topic + highlight counts and date, or the missing step); tap reopens/resumes, swipe deletes
     test_exempt: true
     test_exempt_reason: SwiftUI list; the records it shows and the open/delete behaviour are covered by ProjectStoreTests and SliceSessionTests
     called_by:
@@ -278,7 +423,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipPlayerView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: plays a ClipPreview (source composition, no export) in one AVQueuePlayer + AVPlayerLooper after switching the iOS audio session to .playback/.moviePlayback (audible with the silent switch on); caption overlay follows the player clock through the preview's subtitle windows; player/item/looper/audio-session failures shown verbatim on the stage
+    purpose: plays a ClipPreview (source composition, no export) in one AVQueuePlayer + AVPlayerLooper after switching the iOS audio session to .playback/.moviePlayback; live caption overlay from PreviewCaptionPainter follows the player clock in the current CaptionStyle + CaptionPosition (`.none` hides the overlay; burn-in only happens on save); player/item/looper/audio-session failures shown verbatim on the stage
     test_exempt: true
     test_exempt_reason: AVKit playback view; needs a display and a decoder. The composition and subtitle windows it plays are covered by ClipRendererTests.previewPlaysTheCutCompositionWithoutWritingAFile
     called_by:
@@ -286,7 +431,7 @@ implemented:
   - path: Sources/LiveSliceUI/LiveDependencies.swift
     status: implemented
     module: LiveSliceUI
-    purpose: production wiring of SessionDependencies (SpeechTranscriptionService, TopicSlicer over DeepSeekClient, ClipRenderer) + Caches-based app directories
+    purpose: production wiring of SessionDependencies (SpeechTranscriptionService, TopicSlicer over LLMKit.DeepSeekClient, ClipRenderer) + Caches-based app directories
     test_exempt: true
     test_exempt_reason: pure composition of already-tested modules; SliceSessionTests cover the state machine with injected functions
     called_by:
@@ -327,31 +472,149 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench (capped-height instant preview in the source aspect ratio, one line with the slicing call's token count and - for DeepSeek - its estimated charge, table of every clip with full titles, export-on-save with progress in the button, in-button save confirmation + haptics) + TimeText
+    purpose: workbench (preview, ResultTabBar, crop on stage, export-on-save); trim/merge via toolbar half-sheet; slice/look studios via toolbar fullScreenCover (ADR-0029); iPad two-column layout
     test_exempt: true
-    test_exempt_reason: SwiftUI view; TimeText formatting is covered by TimeTextTests
+    test_exempt_reason: SwiftUI view; session calls covered by SliceSessionTests / RerunsTests
     called_by:
       - Sources/LiveSliceUI/HomeView.swift
+  - path: Sources/LiveSliceUI/ClipListViewStudios.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: workbench toolbar + slice/look studioCover + clip trim/merge half-sheet (ADR-0029)
+    test_exempt: true
+    test_exempt_reason: SwiftUI chrome; SliceSessionRerunsTests cover resliceFromTaste / describeLook
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/ClipListViewPreview.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: ClipListView preview rebuild (incl. cropFocus) and Photos save helpers
+    test_exempt: true
+    test_exempt_reason: SwiftUI helpers; ClipRendererTests and SliceSessionTests cover the underlying calls
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/ParticipatoryControls.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: CropFocusPad, ClipTrimBar, ClipEditStack, ClipEditSheet — Topicut 2.0 participatory chrome (ADR-0026/0029)
+    test_exempt: true
+    test_exempt_reason: SwiftUI; CropFocusStoreTests / SlicingTasteTests / EDLClipTrimTests cover the data path
+    called_by:
+      - Sources/LiveSliceUI/ClipListViewStudios.swift
+      - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+  - path: Sources/LiveSliceUI/CropFocusStore.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: per-clip normalised phone-portrait focus map persisted as crop_focus.json
+    called_by:
+      - Sources/LiveSliceUI/ProjectStore.swift
+      - Sources/LiveSliceUI/SliceSessionReruns.swift
+  - path: Sources/LiveSliceUI/ResultTabs.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: ResultTab (topics | highlights) + ResultTabBar (two pills sharing the line with the token/cost readout) + StaleHighlightsPanel (one line, last call's cost, one explicit 重新切片 button) for documents without highlights (ADR-0022)
+    test_exempt: true
+    test_exempt_reason: SwiftUI views; the reslice they trigger and the nil-vs-empty highlights they branch on are covered by SliceSessionReuseTests and EDLDocumentTests
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
   - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens rationale), ClipPoster
+    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens rationale where the rationale is not already on screen), ClipPoster, TimeText
     test_exempt: true
-    test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests
+    test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests, TimeText formatting by TimeTextTests
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/LookStudioLivePreview.swift
   - path: Sources/LiveSliceUI/ClipDetailView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: read-only rationale sheet for one clip (reason, score, kept/removed ranges, segment bar)
+    purpose: ClipRationaleCard (reason, score, source range, segment bar - the sheet's first card, permanent beside the player on iPad) + the read-only rationale sheet for one clip (card, kept/removed ranges)
     test_exempt: true
     test_exempt_reason: SwiftUI view; the EDL invariants it displays are covered by EDLClipTests
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/ExportLookText.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: display strings for framing / caption style / position and the 保存到相册 button title; ExportLookSection (画幅 | 字幕)
+    called_by:
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/CaptionSample.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: CoreText sample raster for caption-style unit tests (look studio now uses live clip preview)
+    test_exempt: true
+    test_exempt_reason: ExportLookTextTests cover CaptionSample.render; SwiftUI View body unused after live preview
+    called_by:
+      - Tests/LiveSliceUITests/ExportLookTextTests.swift
+  - path: Sources/LiveSliceUI/ErrorReport.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: pasteable error block (display name + version + build + message) and ShareLink button for typed failures; TestFlight only auto-collects crashes
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+      - Sources/LiveSliceUI/SliceStudio.swift
+  - path: Sources/LiveSliceUI/StudioChoice.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: large choice cards + horizontal chip rows shared by slice/look studios (ADR-0029)
+    test_exempt: true
+    test_exempt_reason: SwiftUI layout helpers; studios covered by session/look tests
+    called_by:
+      - Sources/LiveSliceUI/SliceStudio.swift
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceUI/SliceStudio.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: phone-first 切片工作室 after ASR (hero count, preset cards, chip fine-tune, sticky CTA); workbench toolbar re-opens it (ADR-0028/0029)
+    test_exempt: true
+    test_exempt_reason: SwiftUI view; SliceSessionTests cover awaitingSlice/confirmSlice; SliceTastePresetTests cover tags
+    called_by:
+      - Sources/LiveSliceUI/HomeView.swift
+      - Sources/LiveSliceUI/ParticipatoryControls.swift
+  - path: Sources/LiveSliceUI/LookStudioLivePreview.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: ClipRenderer.preview of the selected clip inside 成片工作室; rebuilds on look/framing/crop (same path as workbench)
+    test_exempt: true
+    test_exempt_reason: SwiftUI wrapper; ClipRendererTests + ClipListViewPreview cover the preview path
+    called_by:
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceUI/ExportLookStudio.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: phone-first 成片工作室 (live selected-clip preview, preset cards, tune/describe panes); workbench toolbar (ADR-0027/0029)
+    test_exempt: true
+    test_exempt_reason: SwiftUI studio; LookDescribeParser and CaptionTune covered by unit tests
+    called_by:
+      - Sources/LiveSliceUI/ClipListViewStudios.swift
+  - path: Sources/LiveSliceUI/ExportLookStudioParts.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: colour chips for ExportLookStudio tune pane
+    test_exempt: true
+    test_exempt_reason: SwiftUI helpers for ExportLookStudio
+    called_by:
+      - Sources/LiveSliceUI/ExportLookStudio.swift
+  - path: Sources/LiveSliceUI/LookDescribeParser.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: fail-closed JSON parse of NL look describe replies into framing/style/CaptionTune (ADR-0027)
+    called_by:
+      - Sources/LiveSliceUI/SliceSessionReruns.swift
+  - path: Sources/LiveSliceUI/SliceSessionReruns.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: SliceSession's explicit reruns - captionStyle / captionPosition / framingMode (settings + reloadRenders), reslice (returns to awaitingSlice), resliceFromTaste (workbench confirmed paid re-slice), retranscribe (ADR-0024, speech step only, EDL and exports kept, no AI call), reloadRenders (exports on disk in the current style+position+framing)
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ResultTabs.swift
   - path: Sources/LiveSliceUI/SettingsView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: AI service picker (presets + 自定义, applying a preset fills endpoint/model), BYOK key entry (Keychain) with a link to the chosen service's key page, endpoint/model under 高级, ASR locale preference (auto + fixed) and speech model download status
+    purpose: AI service picker (presets + 自定义), BYOK key, ASR locale and speech model download status (look/taste live in studios only, ADR-0029)
     test_exempt: true
     test_exempt_reason: SwiftUI view; AppSettings persistence covered by AppSettingsTests
     called_by:
@@ -397,7 +660,15 @@ planned:
   - name: EDL editing in app
     status: planned
     tech: []
-    note: trim / merge clips before rendering; today the EDL is read-only in the UI.
+    note: "Head/tail trim + adjacent merge are implemented (EDLClipTrim / EDLClipMerge + workbench). Richer multi-select merge / split remains planned (ADR-0026)."
+  - name: Slice and highlight taste controls
+    status: planned
+    tech: []
+    note: "SlicingTaste + SliceStudio gate (ADR-0028) implemented; further knobs (tone/domain UI) remain planned (ADR-0026)."
+  - name: Interactive crop framing
+    status: planned
+    tech: []
+    note: "Drag focus + pinch zoom on phonePortrait are implemented (CropFocusPad, CropOverride zoom, live preview); freehand polygon crop remains planned (ADR-0026)."
   - name: Background rendering
     status: planned
     tech: []
@@ -410,6 +681,8 @@ requires_new_architecture:
     note: contradicts client-side rendering decision
   - name: Recording from non-Kuaishou live sources
     note: capture pipeline is a different product surface
+  - name: Android or HarmonyOS ports
+    note: "this codebase is Swift/Speech/AVFoundation; a second client would re-implement ASR+render on that OS. Cloud LLM step is portable; on-device speech and composition are not (ADR-0026)."
 
 # Every technology name that may appear in README/docs must be in exactly one bucket.
 # Docs must write planned terms as "Term (planned)", requires_new_architecture terms as

@@ -3,6 +3,7 @@
 // in production" reviewable at a glance and keeps SliceSession free of framework imports.
 
 import Foundation
+import LLMKit
 import LiveSliceASR
 import LiveSliceCore
 import LiveSliceRender
@@ -19,13 +20,18 @@ public extension SessionDependencies {
                     mediaURL: media, preference: preference, scratchDirectory: scratch, progress: progress
                 )
             },
-            slice: { srt, configuration in
-                try await TopicSlicer(client: DeepSeekClient(configuration: configuration)).slice(srtText: srt)
+            slice: { srt, configuration, taste in
+                try await TopicSlicer(client: DeepSeekClient(configuration: configuration), taste: taste).slice(srtText: srt)
             },
-            render: { source, clip, cues, output, progress in
-                try await ClipRenderer()
-                    .render(sourceURL: source, clip: clip, cues: cues, outputURL: output, progress: progress)
-                    .outputURL
+            render: { source, clip, cues, words, style, position, tune, framing, cropFocus, cropZoom, output, progress in
+                try await ClipRenderer(
+                    options: .standard(
+                        captionStyle: style, position: position, tune: tune, framing: framing,
+                        cropFocus: cropFocus, cropZoom: cropZoom
+                    )
+                )
+                .render(sourceURL: source, clip: clip, cues: cues, words: words, outputURL: output, progress: progress)
+                .outputURL
             }
         )
     }

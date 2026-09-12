@@ -56,7 +56,7 @@ struct ClipRendererTests {
         let dir = try SyntheticMedia.scratchDirectory("render-plain")
         let source = try await Self.makeSource(dir: dir, seconds: 8)
         let output = dir.appending(path: "plain.mp4")
-        let options = RenderOptions(frameRate: 30, burnSubtitles: false, subtitleStyle: .vertical1080p)
+        let options = RenderOptions(frameRate: 30, captionStyle: .none)
         let cues = [SRTCue(index: 1, start: 1.5, end: 2.5, text: "不应出现")]
         let result = try await ClipRenderer(options: options).render(sourceURL: source, clip: try Self.clip(), cues: cues, outputURL: output) { _ in }
         #expect(result.subtitleCount == 0)
@@ -114,6 +114,7 @@ struct ClipRendererTests {
             SubtitleWindow(text: "第一段", start: 0.5, end: 1.5),
             SubtitleWindow(text: "第二段", start: 2.0, end: 3.0),
         ])
+        #expect(preview.wordCaptions == nil)
         #expect(preview.renderSize == CGSize(width: 640, height: 360))
         let duration = try await preview.playerItem.asset.load(.duration)
         #expect(abs(duration.seconds - 4) < 0.05)
@@ -124,6 +125,46 @@ struct ClipRendererTests {
         #expect(transform == .identity)
         // Nothing exported: previewing must not touch the disk.
         #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == before)
+    }
+
+    // ADR-0023: word-highlight captions are burnt in from the saved word timings.
+    @Test func highlightWordStyleBurnsBackdropAndAccentWord() async throws {
+        let dir = try SyntheticMedia.scratchDirectory("render-words")
+        let source = try await Self.makeSource(dir: dir, seconds: 8)
+        let output = dir.appending(path: "words.mp4")
+        let cues = [SRTCue(index: 1, start: 1.2, end: 2.8, text: "先找话题 再动剪刀")]
+        let words = [
+            TimedToken(text: "先找话题", start: 1.2, end: 1.9), TimedToken(text: " 再动剪刀", start: 2.0, end: 2.8),
+        ]
+        let renderer = ClipRenderer(options: .standard(captionStyle: .highlightWord))
+        let result = try await renderer.render(sourceURL: source, clip: try Self.clip(), cues: cues, words: words, outputURL: output) { _ in }
+        #expect(result.subtitleCount == 1)
+
+        let asset = AVURLAsset(url: output)
+        let band = Self.captionBand(renderHeight: 360, style: SubtitleStyle.vertical1080p.scaled(to: CGSize(width: 640, height: 360)))
+        // Composition 0.5 s = source 1.5 s: first word spoken; 1.4 s = source 2.4 s: second word.
+        let first = try await FramePixels.capture(asset: asset, atSeconds: 0.5)
+        let second = try await FramePixels.capture(asset: asset, atSeconds: 1.4)
+        let outside = try await FramePixels.capture(asset: asset, atSeconds: 3.0)
+        #expect(first.brightPixelCount(inBandFromY: band.top, toY: band.bottom) > 0, "caption text must be visible")
+        let accentFirst = first.accentPixelCount(inBandFromY: band.top, toY: band.bottom)
+        let accentSecond = second.accentPixelCount(inBandFromY: band.top, toY: band.bottom)
+        #expect(accentFirst > 0, "the spoken word must be drawn in the accent colour")
+        #expect(accentSecond > 0)
+        #expect(first.accentCentroidX(inBandFromY: band.top, toY: band.bottom) < second.accentCentroidX(inBandFromY: band.top, toY: band.bottom),
+                "the accent moves from the first word to the second")
+        #expect(outside.brightPixelCount(inBandFromY: band.top, toY: band.bottom) == 0)
+        #expect(outside.accentPixelCount(inBandFromY: band.top, toY: band.bottom) == 0)
+    }
+
+    @Test func highlightWordStyleWithoutWordTimingsIsAnErrorNotPlainCaptions() async throws {
+        let dir = try SyntheticMedia.scratchDirectory("render-nowords")
+        let source = try await Self.makeSource(dir: dir, seconds: 8)
+        let renderer = ClipRenderer(options: .standard(captionStyle: .highlightWord))
+        await #expect(throws: ClipRendererError.wordTimingsUnavailable(clipID: "f_01_c_01")) {
+            try await renderer.render(sourceURL: source, clip: try Self.clip(), cues: [], words: nil, outputURL: dir.appending(path: "x.mp4")) { _ in }
+        }
+        #expect(!FileManager.default.fileExists(atPath: dir.appending(path: "x.mp4").path))
     }
 
     @Test func sourceWithoutVideoTrackIsAnError() async throws {
@@ -166,6 +207,28 @@ struct FramePixels {
     func isBluish(x: Int, y: Int) -> Bool {
         let (r, g, b) = rgb(x: x, y: y)
         return b > 100 && r < 80 && g < 80
+    }
+
+    /// Pixels that read as the caption accent (yellow: high red and green, low blue).
+    func accentPixelCount(inBandFromY top: Int, toY bottom: Int) -> Int {
+        var count = 0
+        for y in stride(from: max(0, top), to: min(height, bottom), by: 1) {
+            for x in 0..<width where isAccent(x: x, y: y) { count += 1 }
+        }
+        return count
+    }
+
+    func accentCentroidX(inBandFromY top: Int, toY bottom: Int) -> Double {
+        var sum = 0, count = 0
+        for y in stride(from: max(0, top), to: min(height, bottom), by: 1) {
+            for x in 0..<width where isAccent(x: x, y: y) { sum += x; count += 1 }
+        }
+        return count == 0 ? -1 : Double(sum) / Double(count)
+    }
+
+    private func isAccent(x: Int, y: Int) -> Bool {
+        let (r, g, b) = rgb(x: x, y: y)
+        return r > 180 && g > 150 && b < 90
     }
 
     /// Pixels in the horizontal band that are clearly not the deep-blue background (text fill or stroke).

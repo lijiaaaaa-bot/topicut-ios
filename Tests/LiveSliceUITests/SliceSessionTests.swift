@@ -1,4 +1,5 @@
 import Foundation
+import LLMKit
 import Testing
 @testable import LiveSliceUI
 import LiveSliceASR
@@ -20,15 +21,15 @@ struct SliceSessionTests {
                 if let transcribeError { throw transcribeError }
                 #expect(preference == .automatic)
                 progress(0.5)
-                return TranscriptionOutcome(cues: SessionFixtures.cues, locale: Locale(identifier: "zh_CN"))
+                return TranscriptionOutcome(cues: SessionFixtures.cues, locale: Locale(identifier: "zh_CN"), words: SessionFixtures.words)
             },
-            slice: { srt, configuration in
+            slice: { srt, configuration, _ in
                 if let sliceError { throw sliceError }
                 #expect(configuration.apiKey == "sk-test")
                 #expect(try SRTParser.parse(srt) == SessionFixtures.cues)
                 return try SessionFixtures.document()
             },
-            render: { _, clip, cues, output, progress in
+            render: { _, clip, cues, _, _, _, _, _, _, _, output, progress in
                 if let renderError { throw renderError }
                 #expect(clip.id == "f_01_c_01")
                 #expect(cues.count == 2)
@@ -39,12 +40,34 @@ struct SliceSessionTests {
         )
     }
 
+    @Test func startStopsAtAwaitingSliceUntilConfirm() async throws {
+        let harness = try SessionHarness(Self.dependencies())
+        await harness.session.start(sourceURL: try harness.importedSource())
+        #expect(harness.session.stage == .awaitingSlice)
+        #expect(harness.session.awaitingSlice?.cueCount == 2)
+        #expect(harness.session.result == nil)
+        await harness.session.confirmSlice()
+        #expect(harness.session.stage == .ready)
+        #expect(harness.session.awaitingSlice == nil)
+        #expect(harness.session.result?.document.clips.count == 1)
+    }
+
+    @Test func confirmSliceFailureStaysInStudioWithError() async throws {
+        let harness = try SessionHarness(Self.dependencies(sliceError: SessionTestError.speechBroke("llm")))
+        await harness.session.start(sourceURL: try harness.importedSource())
+        #expect(harness.session.stage == .awaitingSlice)
+        await harness.session.confirmSlice()
+        #expect(harness.session.stage == .awaitingSlice)
+        #expect(harness.session.sliceError?.contains("llm") == true)
+        #expect(harness.session.result == nil)
+    }
+
     @Test func happyPathReachesReadyAndRendersClip() async throws {
         let harness = try SessionHarness(Self.dependencies())
         let session = harness.session
         let idle: SessionStage = session.stage
         #expect(idle == .idle)
-        await session.start(sourceURL: try harness.importedSource())
+        try await harness.startThroughSlice()
         #expect(session.stage == .ready)
         let result: SessionResult = try #require(session.result)
         #expect(result.document.clips.count == 1)
@@ -67,7 +90,7 @@ struct SliceSessionTests {
         let harness = try SessionHarness(Self.dependencies())
         let picked = try harness.importedSource()
         let stale = try harness.importedSource(named: "stale.mov")
-        await harness.session.start(sourceURL: picked)
+        try await harness.startThroughSlice(sourceURL: picked)
         #expect(harness.session.stage == .ready)
 
         let record = try #require(harness.session.projects.first)
@@ -103,6 +126,8 @@ struct SliceSessionTests {
         let record = try harness.savedProject(srt: try SRTWriter.serialize(SessionFixtures.cues))
         #expect(!record.isSliced && record.isTranscribed)
         await harness.session.open(record)
+        #expect(harness.session.stage == .awaitingSlice)
+        await harness.session.confirmSlice()
         #expect(harness.session.stage == .ready)
         #expect(try harness.store.load(id: record.id).document == (try SessionFixtures.document()))
     }
@@ -163,7 +188,7 @@ struct SliceSessionTests {
 
     @Test func deleteRemovesProjectSourceAndExports() async throws {
         let harness = try SessionHarness(Self.dependencies())
-        await harness.session.start(sourceURL: try harness.importedSource())
+        try await harness.startThroughSlice()
         await harness.session.render(clip: try SessionFixtures.clip())
         let record = try #require(harness.session.projects.first)
         let exports = harness.output.appending(path: record.id)
@@ -178,9 +203,9 @@ struct SliceSessionTests {
 
     @Test func cancelledRenderReturnsToIdleNotFailed() async throws {
         var deps = Self.dependencies()
-        deps.render = { _, _, _, _, _ in throw CancellationError() }
+        deps.render = { _, _, _, _, _, _, _, _, _, _, _, _ in throw CancellationError() }
         let harness = try SessionHarness(deps)
-        await harness.session.start(sourceURL: try harness.importedSource())
+        try await harness.startThroughSlice()
         await harness.session.render(clip: try SessionFixtures.clip())
         #expect(harness.session.renders["f_01_c_01"] == .idle)
         #expect(!harness.session.hasRenderInFlight)
@@ -188,7 +213,7 @@ struct SliceSessionTests {
 
     @Test func resetKeepsTheProjectAndClearsScratch() async throws {
         let harness = try SessionHarness(Self.dependencies())
-        await harness.session.start(sourceURL: try harness.importedSource())
+        try await harness.startThroughSlice()
         try Data("wav".utf8).write(to: harness.scratch.appending(path: "asr.m4a"))
         harness.session.reset()
         #expect(harness.session.stage == .idle)
@@ -203,7 +228,7 @@ struct SliceSessionTests {
         let harness = try SessionHarness(Self.dependencies(transcribeError: SessionTestError.mustNotRun), key: nil)
         let picked = try harness.importedSource()
         await harness.session.start(sourceURL: picked)
-        #expect(harness.session.stage == .failed("missingAPIKey"))
+        #expect(harness.session.stage == .failed("未设置 DEEPSEEK_API_KEY")) // LLMKit DeepSeekError is LocalizedError (ADR-0023)
         #expect(harness.session.result == nil)
         #expect(harness.session.projects.isEmpty)
         #expect(FileManager.default.fileExists(atPath: picked.path))
@@ -220,7 +245,7 @@ struct SliceSessionTests {
 
     @Test func renderErrorIsPerClip() async throws {
         let harness = try SessionHarness(Self.dependencies(renderError: SessionTestError.exportBroke))
-        await harness.session.start(sourceURL: try harness.importedSource())
+        try await harness.startThroughSlice()
         let clip = try SessionFixtures.clip()
         await harness.session.render(clip: clip)
         #expect(harness.session.renders[clip.id] == .failed("exportBroke"))
@@ -238,7 +263,7 @@ struct SliceSessionTests {
         noop(1)
         #expect(ErrorText.describe(KeychainError.unexpectedStatus(-34018)) == "unexpectedStatus(-34018)")
         #expect(ErrorText.describe(PhotoLibraryError.accessDenied(.denied)).hasPrefix("accessDenied("))
-        #expect(ErrorText.describe(DeepSeekError.missingAPIKey) == "missingAPIKey")
+        #expect(ErrorText.describe(DeepSeekError.missingAPIKey) == "未设置 DEEPSEEK_API_KEY")
         #expect(ErrorText.describe(SpeechTranscriptionError.noSpeechDetected).contains("人声"))
     }
 }

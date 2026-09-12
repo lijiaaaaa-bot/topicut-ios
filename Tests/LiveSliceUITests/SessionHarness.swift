@@ -7,6 +7,9 @@ import LiveSliceKeychain
 /// Fixtures shared by the injected dependency closures (which run off the main actor).
 enum SessionFixtures {
     static let cues = [SRTCue(index: 1, start: 1, end: 13, text: "话题主体"), SRTCue(index: 2, start: 16, end: 22, text: "收束")]
+    static let words = [
+        TimedToken(text: "话题", start: 1, end: 6), TimedToken(text: "主体", start: 6, end: 13), TimedToken(text: "收束", start: 16, end: 22),
+    ]
 
     static func clip() throws -> EDLClip {
         try EDLClip(
@@ -79,5 +82,23 @@ struct SessionHarness {
         try store.save(record)
         if !source { try FileManager.default.removeItem(at: store.sourceURL(of: record)) }
         return record
+    }
+
+    /// Import → ASR → stop at 切片工作室 → confirm the paid slice (ADR-0028).
+    /// If the project already has a current EDL (reopen / fingerprint hit), stays at `.ready`.
+    func startThroughSlice(sourceURL: URL? = nil) async throws {
+        await session.start(sourceURL: try sourceURL ?? importedSource())
+        if case .awaitingSlice = session.stage {
+            #expect(session.awaitingSlice != nil)
+            await session.confirmSlice()
+        }
+    }
+
+    /// Open a project; if the pipeline stops at the studio gate, confirm the slice.
+    func openThroughSlice(_ record: ProjectRecord) async {
+        await session.open(record)
+        if case .awaitingSlice = session.stage {
+            await session.confirmSlice()
+        }
     }
 }

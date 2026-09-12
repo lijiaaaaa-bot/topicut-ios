@@ -5,20 +5,6 @@
 import Foundation
 import LiveSliceCore
 
-/// One recognized token with its audio time range (seconds). Tokens without a time range attach to
-/// the previous token before they reach the segmenter (see SpeechTranscriptionService).
-public struct TimedToken: Equatable, Sendable {
-    public let text: String
-    public let start: Double
-    public let end: Double
-
-    public init(text: String, start: Double, end: Double) {
-        self.text = text
-        self.start = start
-        self.end = end
-    }
-}
-
 public enum CueSegmenterError: Error, Equatable, Sendable {
     /// Every token of a cue had zero duration; a subtitle cannot be shown for zero time.
     case nonPositiveCueDuration(text: String, start: Double, end: Double)

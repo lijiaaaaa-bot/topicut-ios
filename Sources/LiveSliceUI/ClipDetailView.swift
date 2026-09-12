@@ -13,29 +13,7 @@ struct ClipDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            if let category = clip.category {
-                                Text(category)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(StudioTheme.accent)
-                            }
-                            Spacer()
-                            Text("话题分 \((clip.score * 100).formatted(.number.precision(.fractionLength(0))))")
-                                .font(.caption.bold())
-                                .foregroundStyle(StudioTheme.success)
-                        }
-                        Text(clip.title).font(.headline)
-                        Text(clip.reason)
-                            .font(.subheadline)
-                            .foregroundStyle(StudioTheme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("原视频 \(TimeText.clock(clip.startSec))–\(TimeText.clock(clip.endSec))")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(StudioTheme.muted)
-                        ClipSegmentBar(clip: clip)
-                    }
-                    .studioCard()
+                    ClipRationaleCard(clip: clip)
 
                     VStack(alignment: .leading, spacing: 12) {
                         Label("保留 \(clip.segments.count) 段", systemImage: "checkmark.circle.fill")
@@ -83,6 +61,38 @@ struct ClipDetailView: View {
                 }
             }
         }
+    }
+}
+
+/// Why the clip exists, in one card: category, score, title, the model's reason, the source range
+/// and the kept ranges. The sheet opens with it; on iPad it sits beside the player permanently.
+struct ClipRationaleCard: View {
+    let clip: EDLClip
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                if let category = clip.category {
+                    Text(category)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(StudioTheme.accent)
+                }
+                Spacer()
+                Text("话题分 \((clip.score * 100).formatted(.number.precision(.fractionLength(0))))")
+                    .font(.caption.bold())
+                    .foregroundStyle(StudioTheme.success)
+            }
+            Text(clip.title).font(.headline)
+            Text(clip.reason)
+                .font(.subheadline)
+                .foregroundStyle(StudioTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("原视频 \(TimeText.clock(clip.startSec))–\(TimeText.clock(clip.endSec))")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(StudioTheme.muted)
+            ClipSegmentBar(clip: clip)
+        }
+        .studioCard()
     }
 }
 

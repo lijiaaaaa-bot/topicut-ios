@@ -1,9 +1,10 @@
 // Why: the workbench plays a clip the moment it is selected — straight from the source through the
-// same cut/concat/framing composition the export uses — so nothing is written to disk until the
-// user saves. One AVQueuePlayer lives as long as the stage and loops via AVPlayerLooper; the
-// subtitle overlay follows the player clock because captions cannot be burnt into live playback.
-// The audio session is switched to `.playback` before the first play: the default `.soloAmbient`
-// obeys the ring/silent switch, which is why a clip could play with no sound at all.
+// same cut/concat composition the export uses — so nothing is written to disk until the user saves.
+// One AVQueuePlayer lives as long as the stage and loops via AVPlayerLooper. Captions cannot be
+// burnt into live playback (`animationTool` is export-only), so the overlay is drawn by the same
+// SubtitleRasterizer the export uses, in the current CaptionStyle (ADR-0024): switching the export
+// option updates the stage immediately. The audio session is switched to `.playback` before the
+// first play: the default `.soloAmbient` obeys the ring/silent switch.
 
 import AVFoundation
 import AVKit
@@ -12,46 +13,56 @@ import SwiftUI
 
 struct ClipPlayerView: View {
     let preview: ClipPreview
+    let style: CaptionStyle
+    let tune: CaptionTune
+    let clipID: String
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
     @State private var observer: Any?
     @State private var statusObservers: [NSKeyValueObservation] = []
-    @State private var caption = ""
-    /// A player, item or looper failure, verbatim. A black frame with no words is not acceptable.
+    @State private var caption: PreviewCaptionFrame?
+    @State private var captionKey = ""
+    @State private var viewSize: CGSize = .zero
     @State private var playbackError: String?
 
     var body: some View {
-        VideoPlayer(player: player)
-            .overlay(alignment: .bottom) { captionView }
-            .overlay { if let playbackError { PlaybackFailure(message: playbackError) } }
-            .onAppear { load(preview) }
-            .onChange(of: preview.playerItem) { _, _ in load(preview) }
-            .onDisappear { tearDown() }
+        GeometryReader { proxy in
+            VideoPlayer(player: player)
+                .overlay(alignment: .bottom) { captionOverlay }
+                .overlay { if let playbackError { PlaybackFailure(message: playbackError) } }
+                .onAppear {
+                    viewSize = proxy.size
+                    load(preview)
+                }
+                .onChange(of: preview.playerItem) { _, _ in load(preview) }
+                .onChange(of: style) { _, _ in paint(force: true) }
+                .onChange(of: tune) { _, _ in paint(force: true) }
+                .onChange(of: proxy.size) { _, size in
+                    viewSize = size
+                    paint(force: true)
+                }
+                .onDisappear { tearDown() }
+        }
     }
 
     @ViewBuilder
-    private var captionView: some View {
-        if !caption.isEmpty {
-            Text(caption)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .shadow(color: .black.opacity(0.9), radius: 3, y: 1)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.horizontal, 16)
-                .padding(.bottom, 64)
-                .transition(.opacity)
+    private var captionOverlay: some View {
+        if let caption {
+            let scale = caption.bandSize.width > 0 ? CGFloat(caption.image.width) / caption.bandSize.width : 1
+            Image(decorative: caption.image, scale: scale)
+                .resizable()
+                .frame(width: caption.bandSize.width, height: caption.bandSize.height)
+                .padding(.bottom, caption.bottomInset)
+                .padding(.horizontal, caption.horizontalInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .allowsHitTesting(false)
+                .transition(.opacity)
         }
     }
 
     private func load(_ preview: ClipPreview) {
         tearDown()
         activateAudioOutput()
-        let subtitles = preview.subtitles
         let looper = AVPlayerLooper(player: player, templateItem: preview.playerItem)
         self.looper = looper
         statusObservers = [
@@ -68,23 +79,58 @@ struct ClipPlayerView: View {
                 Task { @MainActor in report(item.error, from: "切片合成") }
             },
         ]
-        observer = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 10), queue: .main) { [player] _ in
-            // The looper swaps items at the loop point; the player's own clock is not the clip's.
-            guard let item = player.currentItem else { return }
-            let seconds = item.currentTime().seconds
-            let next: String
-            if let window = subtitles.first(where: { seconds >= $0.start && seconds < $0.end }) {
-                next = window.text
-            } else {
-                next = "" // between cues there is nothing to show
-            }
-            if next != caption { withAnimation(.easeOut(duration: 0.12)) { caption = next } }
+        observer = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 10), queue: .main) { _ in
+            Task { @MainActor in paint(force: false) }
         }
         player.play()
+        paint(force: true)
     }
 
-    /// Movie playback that ignores the silent switch and pauses other apps' audio while a clip plays.
-    /// macOS has no audio session. A failure is shown on the stage like any other playback failure.
+    private func paint(force: Bool) {
+        guard viewSize.width > 1, viewSize.height > 1 else { return }
+        let seconds: Double
+        if let item = player.currentItem { seconds = item.currentTime().seconds } else { seconds = 0 }
+        do {
+            let captions = try preview.captions(style: style, clipID: clipID)
+            let key = Self.key(captions: captions, at: seconds, style: style, tune: tune)
+            guard force || key != captionKey else { return }
+            captionKey = key
+            let next = try PreviewCaptionPainter.frame(
+                captions: captions, at: seconds, tune: tune,
+                renderSize: preview.renderSize, viewSize: viewSize
+            )
+            withAnimation(.easeOut(duration: 0.12)) { caption = next }
+        } catch {
+            playbackError = ErrorText.describe(error)
+            caption = nil
+            captionKey = ""
+        }
+    }
+
+    /// Stable while the same cue (and spoken word, for highlight) is on screen — skips redraws.
+    private static func key(
+        captions: PlaybackCaptions, at seconds: Double, style: CaptionStyle, tune: CaptionTune
+    ) -> String {
+        let tuneKey = "\(tune.bandY)-\(tune.fontScale)-\(tune.textHex)-\(tune.accentHex)"
+        switch captions {
+        case .none:
+            return "none|\(tuneKey)"
+        case .plain(let windows):
+            guard let window = windows.first(where: { seconds >= $0.start && seconds < $0.end }) else {
+                return "\(style.rawValue)|\(tuneKey)|"
+            }
+            return "\(style.rawValue)|\(tuneKey)|\(window.start)|\(window.text)"
+        case .words(let list):
+            guard let caption = list.first(where: { seconds >= $0.start && seconds < $0.end }) else {
+                return "\(style.rawValue)|\(tuneKey)|"
+            }
+            let word = caption.words.last(where: { seconds >= $0.start && seconds < $0.end })
+            let wordStart: Int
+            if let word { wordStart = word.range.lowerBound } else { wordStart = -1 }
+            return "\(style.rawValue)|\(tuneKey)|\(caption.start)|\(wordStart)"
+        }
+    }
+
     private func activateAudioOutput() {
         #if os(iOS)
         do {
@@ -99,11 +145,7 @@ struct ClipPlayerView: View {
 
     private func report(_ error: Error?, from stage: String) {
         let detail: String
-        if let error {
-            detail = ErrorText.describe(error)
-        } else {
-            detail = "未提供错误信息" // AVFoundation reported .failed without an NSError
-        }
+        if let error { detail = ErrorText.describe(error) } else { detail = "未提供错误信息" }
         playbackError = "\(stage)无法播放这一条：\(detail)"
     }
 
@@ -116,12 +158,12 @@ struct ClipPlayerView: View {
         looper = nil
         player.pause()
         player.removeAllItems()
-        caption = ""
+        caption = nil
+        captionKey = ""
         playbackError = nil
     }
 }
 
-/// The exact failure, on the stage, where the video would have been.
 private struct PlaybackFailure: View {
     let message: String
 

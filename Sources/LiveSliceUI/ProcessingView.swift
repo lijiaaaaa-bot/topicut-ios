@@ -10,7 +10,7 @@ struct ProcessingView: View {
     private var fraction: Double? {
         switch session.stage {
         case .preparingModel(let value), .transcribing(let value): value
-        case .slicing, .idle, .ready, .failed: nil
+        case .slicing, .idle, .awaitingSlice, .ready, .failed: nil
         }
     }
 
@@ -19,7 +19,7 @@ struct ProcessingView: View {
         case .preparingModel: 0
         case .transcribing: 1
         case .slicing: 2
-        case .idle, .ready, .failed: -1
+        case .idle, .awaitingSlice, .ready, .failed: -1
         }
     }
 
@@ -31,8 +31,8 @@ struct ProcessingView: View {
             if let label = localeLabel { return "正在转写 · \(label)" }
             return "正在转写"
         case .slicing:
-            return "正在找话题"
-        case .idle, .ready, .failed:
+            return "正在找话题和金句"
+        case .idle, .awaitingSlice, .ready, .failed:
             return ""
         }
     }

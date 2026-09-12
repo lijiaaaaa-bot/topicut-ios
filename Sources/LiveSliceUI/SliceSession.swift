@@ -9,28 +9,37 @@
 import Foundation
 import LiveSliceASR
 import LiveSliceCore
+import LiveSliceRender
 import Observation
 
 @MainActor
 @Observable
 public final class SliceSession {
-    public private(set) var stage: SessionStage = .idle
-    public private(set) var result: SessionResult?
-    public private(set) var renders: [String: ClipRenderState] = [:]
+    public internal(set) var stage: SessionStage = .idle
+    public internal(set) var result: SessionResult?
+    public internal(set) var renders: [String: ClipRenderState] = [:]
     /// When the current pipeline run began; drives the elapsed-time readout, never an estimate.
-    public private(set) var startedAt: Date?
+    public internal(set) var startedAt: Date?
     /// Locale actually used for the current/last transcription (after automatic detection).
-    public private(set) var activeLocaleIdentifier: String?
+    public internal(set) var activeLocaleIdentifier: String?
     /// The AI service the slicing request went to (preset name or host), for the wait screen.
-    public private(set) var slicingService: String?
+    public internal(set) var slicingService: String?
     /// Saved projects, newest first; refreshed after every store change.
     public private(set) var projects: [ProjectRecord] = []
+    /// In-memory head/tail trim while the user drags sliders — preview only until `trimClip` saves.
+    public var draftTrimClipID: String?
+    public var draftTrimLeading: Double = 0
+    public var draftTrimTrailing: Double = 0
+    /// Present while `.awaitingSlice` — transcript facts for the 切片工作室 (ADR-0028).
+    public internal(set) var awaitingSlice: AwaitingSliceInfo?
+    /// Last failed `confirmSlice` error; cleared on the next attempt. Studio shows it in place.
+    public internal(set) var sliceError: String?
 
-    private let dependencies: SessionDependencies
-    private let settings: AppSettings
-    private let store: ProjectStore
-    private let scratchDirectory: URL
-    private let outputDirectory: URL
+    let dependencies: SessionDependencies
+    let settings: AppSettings
+    let store: ProjectStore
+    let scratchDirectory: URL
+    let outputDirectory: URL
 
     public init(
         settings: AppSettings, dependencies: SessionDependencies, store: ProjectStore,
@@ -58,7 +67,7 @@ public final class SliceSession {
     public var isBusy: Bool {
         switch stage {
         case .preparingModel, .transcribing, .slicing: return true
-        case .idle, .ready, .failed: return false
+        case .idle, .awaitingSlice, .ready, .failed: return false
         }
     }
 
@@ -118,75 +127,17 @@ public final class SliceSession {
         }
     }
 
-    private func beginRun() {
+    func beginRun() {
         result = nil
         renders = [:]
+        awaitingSlice = nil
+        sliceError = nil
         activeLocaleIdentifier = nil
         startedAt = Date()
     }
 
-    /// The pipeline from wherever `record` stopped. A saved step is reused only while the inputs
-    /// that produced it are unchanged (`PipelineReuse`); a changed input reruns that step and every
-    /// step after it. Each finished step is saved before the next begins.
-    private func run(_ initial: ProjectRecord) async {
-        var record = initial
-        do {
-            let sourceURL = try store.requireSource(of: record)
-            let preference = settings.localePreference
-            let sliceKey = PipelineReuse.sliceKey(model: settings.model, baseURL: settings.baseURL)
-            let transcriptCurrent = PipelineReuse.transcriptIsCurrent(record, preference: preference)
-            if !transcriptCurrent {
-                try discardSlice(of: &record) // a transcript in another language invalidates the EDL too
-                stage = .preparingModel(0)
-                try await dependencies.prepareModel(preference) { [weak self] value in
-                    Task { @MainActor in self?.stage = .preparingModel(value) }
-                }
-                stage = .transcribing(0)
-                let outcome = try await dependencies.transcribe(sourceURL, preference, scratchDirectory) { [weak self] value in
-                    Task { @MainActor in self?.stage = .transcribing(value) }
-                }
-                record.srt = try SRTWriter.serialize(outcome.cues)
-                record.localeIdentifier = outcome.locale.identifier
-                record.transcribedWith = preference.identifier
-                try store.save(record)
-                refreshProjects()
-            }
-            guard let srt = record.srt, let localeIdentifier = record.localeIdentifier else {
-                throw ProjectStoreError.corruptRecord(record.id)
-            }
-            activeLocaleIdentifier = localeIdentifier
-            if !PipelineReuse.sliceIsCurrent(record, transcriptCurrent: transcriptCurrent, key: sliceKey) {
-                try discardSlice(of: &record)
-                let configuration = try settings.deepSeekConfiguration()
-                slicingService = settings.servicePreset?.name ?? configuration.baseURL.host() ?? settings.baseURL
-                stage = .slicing
-                record.document = try await dependencies.slice(srt, configuration)
-                record.slicedWith = sliceKey
-                try store.save(record)
-                refreshProjects()
-            }
-            guard let stored = record.document else { throw ProjectStoreError.corruptRecord(record.id) }
-            // Documents saved before the unique-id rule may carry duplicate clip ids; relabel once.
-            let document = try stored.withUniqueClipIDs()
-            if document != stored {
-                record.document = document
-                try store.save(record)
-                refreshProjects()
-            }
-            result = SessionResult(
-                projectID: record.id, sourceURL: sourceURL, cues: try SRTParser.parse(srt),
-                document: document, localeIdentifier: localeIdentifier, slicedWith: record.slicedWith
-            )
-            renders = try restoredRenders(projectID: record.id, clips: document.clips)
-            stage = .ready
-        } catch {
-            stage = .failed(ErrorText.describe(error))
-        }
-    }
-
-    /// Drops a stale EDL and the exports cut from it: a new slicing run reuses clip ids, so an old
-    /// `<clipID>.mp4` would otherwise pass for the new clip's export.
-    private func discardSlice(of record: inout ProjectRecord) throws {
+    /// Drops a stale EDL and its exports: clip ids repeat across runs, so an old MP4 would pass for a new clip.
+    func discardSlice(of record: inout ProjectRecord) throws {
         guard record.document != nil else { return }
         record.document = nil
         record.slicedWith = nil
@@ -194,20 +145,30 @@ public final class SliceSession {
         if FileManager.default.fileExists(atPath: exports.path) { try FileManager.default.removeItem(at: exports) }
     }
 
-    /// Exports already on disk for this project, keyed back to their clip.
-    private func restoredRenders(projectID: String, clips: [EDLClip]) throws -> [String: ClipRenderState] {
+    /// Exports already on disk for this project in the current caption style, keyed back to their clip.
+    func restoredRenders(projectID: String, clips: [EDLClip]) throws -> [String: ClipRenderState] {
         let directory = outputDirectory.appending(path: projectID)
         guard FileManager.default.fileExists(atPath: directory.path) else { return [:] }
         var restored: [String: ClipRenderState] = [:]
+        let style = settings.captionStyle
+        let position = settings.captionPosition
+        let tune = settings.captionTune
+        let framing = settings.framingMode
         for url in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for clip in clips where url.lastPathComponent == Self.exportName(clip: clip) {
+            for clip in clips where url.lastPathComponent == Self.exportName(clip: clip, style: style, position: position, tune: tune, framing: framing) {
                 restored[clip.id] = .done(url)
             }
         }
         return restored
     }
 
-    private static func exportName(clip: EDLClip) -> String { "\(clip.id).mp4" }
+    /// `<clipID><styleSuffix><tuneSuffix><framingSuffix>.mp4`; defaults keep the 1.0 name.
+    static func exportName(
+        clip: EDLClip, style: CaptionStyle, position: CaptionPosition,
+        tune: CaptionTune = .standard, framing: FramingMode = .sourceAspect
+    ) -> String {
+        "\(clip.id)\(style.exportSuffix)\(tune.exportSuffix)\(framing.exportSuffix).mp4"
+    }
 
     /// Renders one clip of the current result into the project's export directory. Task
     /// cancellation returns the clip to `.idle`; it is not a failure.
@@ -220,8 +181,17 @@ public final class SliceSession {
         do {
             let directory = outputDirectory.appending(path: result.projectID)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let output = directory.appending(path: Self.exportName(clip: clip))
-            let url = try await dependencies.render(result.sourceURL, clip, result.cues, output) { [weak self] value in
+            let style = settings.captionStyle
+            let position = settings.captionPosition
+            let tune = settings.captionTune
+            let framing = settings.framingMode
+            let cropMap = try store.loadCropFocus(of: result.projectID)
+            let cropFocus = cropMap.focus(for: clip.id)
+            let cropZoom = cropMap.zoom(for: clip.id)
+            let output = directory.appending(path: Self.exportName(clip: clip, style: style, position: position, tune: tune, framing: framing))
+            let url = try await dependencies.render(
+                result.sourceURL, clip, result.cues, result.words, style, position, tune, framing, cropFocus, cropZoom, output
+            ) { [weak self] value in
                 Task { @MainActor in
                     if case .rendering = self?.renders[clip.id] { self?.renders[clip.id] = .rendering(value) }
                 }
@@ -239,6 +209,8 @@ public final class SliceSession {
     public func reset() {
         result = nil
         renders = [:]
+        awaitingSlice = nil
+        sliceError = nil
         startedAt = nil
         activeLocaleIdentifier = nil
         do {
@@ -260,5 +232,3 @@ public final class SliceSession {
         try fm.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
     }
 }
-
-/// Human-readable error text that keeps the typed case name (e.g. `missingAPIKey`) visible.

@@ -1,8 +1,11 @@
 // Why: LLM output is untrusted text. This is the one place that turns it into validated EDL
 // clips; every field the prompt demands is required here, and a bad range is an error rather
 // than a silently dropped item (the Python original skipped `start == end` placeholders).
+// Locating the JSON object and describing decode failures is `LLMJSON` (LiJiaKit/LLMKit);
+// this file owns only the EDL shape and its invariants.
 
 import Foundation
+import LLMKit
 
 public enum LLMResponseError: Error, Equatable, Sendable {
     /// No `{ ... }` object could be located in the text.
@@ -13,15 +16,27 @@ public enum LLMResponseError: Error, Equatable, Sendable {
     case noSlices
 }
 
+/// Both products of one slicing call (ADR-0022): topic clips (never empty) and highlights (may be).
+public struct LLMSlices: Equatable, Sendable {
+    public let clips: [EDLClip]
+    public let highlights: [EDLClip]
+}
+
 public enum LLMResponseParser {
-    /// Parses the raw chat response into validated clips.
-    public static func parseClips(from text: String) throws -> [EDLClip] {
-        let json = try extractJSONObject(from: text)
+    /// The framework id every highlight is filed under; ids become `highlights_c_NN`.
+    public static let highlightsFrameworkID = "highlights"
+    public static let highlightsFrameworkTitle = "金句"
+
+    /// Parses the raw chat response into validated clips and highlights. The `highlights` key is
+    /// required (the prompt demands it, empty or not); a reply without it is a decoding error.
+    public static func parse(from text: String) throws -> LLMSlices {
         let response: RawResponse
         do {
-            response = try JSONDecoder().decode(RawResponse.self, from: Data(json.utf8))
-        } catch let error as DecodingError {
-            throw LLMResponseError.decoding(describe(error))
+            response = try LLMJSON.decode(RawResponse.self, from: text)
+        } catch let LLMJSONError.noJSONObject(preview) {
+            throw LLMResponseError.noJSONObject(preview: preview)
+        } catch let LLMJSONError.decoding(detail) {
+            throw LLMResponseError.decoding(detail)
         }
         let pairs = response.frameworks.flatMap { framework in framework.slices.map { (framework, $0) } }
         let ids = EDLClip.uniqueIDs(frameworkIDs: pairs.map(\.0.id))
@@ -30,23 +45,13 @@ public enum LLMResponseParser {
             clips.append(try makeClip(slice, clipID: ids[index], framework: framework))
         }
         guard !clips.isEmpty else { throw LLMResponseError.noSlices }
-        return clips
-    }
-
-    /// Strips optional markdown fences and returns the outermost `{...}` substring.
-    public static func extractJSONObject(from text: String) throws -> String {
-        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if body.hasPrefix("```") {
-            body = body.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
-                .dropFirst().joined(separator: "\n")
-            if let fenceEnd = body.range(of: "```", options: .backwards) {
-                body = String(body[..<fenceEnd.lowerBound])
-            }
+        let quoteFramework = RawFramework(id: highlightsFrameworkID, title: highlightsFrameworkTitle, slices: [])
+        let quoteIDs = EDLClip.uniqueIDs(frameworkIDs: response.highlights.map { _ in highlightsFrameworkID })
+        var highlights: [EDLClip] = []
+        for (index, slice) in response.highlights.enumerated() {
+            highlights.append(try makeClip(slice, clipID: quoteIDs[index], framework: quoteFramework))
         }
-        guard let open = body.firstIndex(of: "{"), let close = body.lastIndex(of: "}"), open < close else {
-            throw LLMResponseError.noJSONObject(preview: String(text.prefix(200)))
-        }
-        return String(body[open...close])
+        return LLMSlices(clips: clips, highlights: highlights)
     }
 
     private static func makeClip(_ slice: RawSlice, clipID: String, framework: RawFramework) throws -> EDLClip {
@@ -81,28 +86,9 @@ public enum LLMResponseParser {
         EDLSegment(startSec: try Timecode.parse(raw.start), endSec: try Timecode.parse(raw.end), reason: reason)
     }
 
-    private static func describe(_ error: DecodingError) -> String {
-        switch error {
-        case let .keyNotFound(key, context):
-            return "missing field '\(key.stringValue)' at \(path(context))"
-        case let .typeMismatch(type, context):
-            return "type mismatch (expected \(type)) at \(path(context))"
-        case let .valueNotFound(type, context):
-            return "null where \(type) expected at \(path(context))"
-        case let .dataCorrupted(context):
-            return "corrupted data at \(path(context)): \(context.debugDescription)"
-        @unknown default:
-            return String(describing: error)
-        }
-    }
-
-    private static func path(_ context: DecodingError.Context) -> String {
-        let joined = context.codingPath.map(\.stringValue).joined(separator: ".")
-        return joined.isEmpty ? "<root>" : joined
-    }
-
     struct RawResponse: Decodable {
         let frameworks: [RawFramework]
+        let highlights: [RawSlice]
     }
 
     struct RawFramework: Decodable {

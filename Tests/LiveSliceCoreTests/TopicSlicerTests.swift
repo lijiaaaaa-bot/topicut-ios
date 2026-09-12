@@ -1,4 +1,5 @@
 import Foundation
+import LLMKit
 import Testing
 @testable import LiveSliceCore
 
@@ -20,8 +21,26 @@ struct TopicSlicerTests {
         #expect(document.strategy == .topicCompleteGeneral)
         #expect(document.llm?.model == "test-model")
         #expect(document.llm?.totalTokens == 1540)
+        #expect(document.highlights?.map(\.id) == ["highlights_c_01"])
+        #expect(document.highlightPolicy == HighlightCountPolicy(durationMinutes: 0.35, minHighlights: 2, maxHighlights: 4))
         let decoded = try EDLDocument.decode(try document.encode())
         #expect(decoded == document)
+    }
+
+    @Test func highlightOutsideSubtitleRangeIsRejectedLikeAClip() async throws {
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: Data(TestSupport.sampleLLMReply.utf8)) as? [String: Any]
+        )
+        var quotes = try #require(object["highlights"] as? [[String: Any]])
+        quotes[0]["end"] = "00:00:40.000"
+        quotes[0]["segments"] = [["start": "00:00:16.000", "end": "00:00:40.000", "keep_reason": "完整表达"]]
+        object["highlights"] = quotes
+        let late = String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+        await #expect(throws: TopicSlicerError.clipOutOfBounds(
+            clipID: "highlights_c_01", startSec: 16, endSec: 40, transcriptStart: 1, transcriptEnd: 22
+        )) {
+            try await slicer(reply: late).slice(srtText: TestSupport.sampleSRT)
+        }
     }
 
     @Test func missingUsageFailsTheWholeRun() async throws {

@@ -1,8 +1,7 @@
 // Why: BYOK (ADR-0007) means the user types their own AI service key here and it goes straight to
 // the Keychain. The service is picked from presets (ADR-0018) so nobody has to know what a base
-// URL is; the values behind a preset stay editable under 高级. The same screen shows which
-// on-device speech model is installed so a missing download is a visible state, not a surprise
-// mid-run.
+// URL is; the values behind a preset stay editable under 高级. Slice taste and 成片 look live only
+// in their studios (ADR-0029). This screen also shows which on-device speech model is installed.
 
 import LiveSliceASR
 import SwiftUI

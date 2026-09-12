@@ -14,12 +14,13 @@ struct HomeView: View {
     @State private var showImporter = false
     @State private var importError: String?
 
-    private enum Screen: Equatable { case idle, processing, ready, failed }
+    private enum Screen: Equatable { case idle, processing, awaitingSlice, ready, failed }
 
     private var screen: Screen {
         switch session.stage {
         case .idle: .idle
         case .preparingModel, .transcribing, .slicing: .processing
+        case .awaitingSlice: .awaitingSlice
         case .ready: .ready
         case .failed: .failed
         }
@@ -33,6 +34,15 @@ struct HomeView: View {
                 pickerScreen.transition(.opacity.combined(with: .scale(scale: 0.98)))
             case .processing:
                 ProcessingView(session: session).transition(.opacity.combined(with: .scale(scale: 0.98)))
+            case .awaitingSlice:
+                if let info = session.awaitingSlice {
+                    SliceStudio(
+                        taste: $settings.slicingTaste, info: info, sliceError: session.sliceError,
+                        onConfirm: { Task { await session.confirmSlice() } },
+                        onCancel: { session.reset() }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
             case .ready:
                 ClipListView(session: session).transition(.opacity.combined(with: .move(edge: .bottom)))
             case .failed:
@@ -107,6 +117,7 @@ struct HomeView: View {
                 .padding(.horizontal, 8)
                 .studioCard()
             Spacer()
+            ErrorShareButton(message: message)
             Button("重新选择") { session.reset() }
                 .buttonStyle(PrimaryButtonStyle())
         }

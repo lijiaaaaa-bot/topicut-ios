@@ -2,15 +2,21 @@ import Testing
 @testable import LiveSliceCore
 
 struct TopicCompletePromptTests {
+    let quotes = HighlightCountPolicy(durationMinutes: 12.5, minHighlights: 4, maxHighlights: 8)
+
     @Test func generalSystemPromptInterpolatesPolicyAndKeepsCoreRules() {
         let policy = ClipCountPolicy(durationMinutes: 12.5, minClips: 3, maxClips: 7, hardMaxClips: 9)
-        let prompt = TopicCompletePrompt.system(policy: policy, domain: "general")
+        let prompt = TopicCompletePrompt.system(policy: policy, highlights: quotes, domain: "general")
         #expect(prompt.contains("本场字幕约 12.5 分钟"))
         #expect(prompt.contains("建议粒度范围 3~7 条，尽量不超出 9 条"))
         #expect(prompt.contains("长视频/直播切片助手"))
         #expect(prompt.contains("只输出 JSON"))
         #expect(prompt.contains("\"frameworks\""))
         #expect(prompt.contains("\"removed_segments\""))
+        #expect(prompt.contains("\"highlights\""))
+        #expect(prompt.contains("从全场挑出 4~8 条"))
+        #expect(prompt.contains("每条 20~90 秒"))
+        #expect(prompt.contains("highlights 可以为空数组，但键不能缺"))
         #expect(prompt.contains("观点论述"))
         #expect(prompt.contains("知识科普"))
         #expect(!prompt.contains("军事新闻直播切片助手"))
@@ -19,7 +25,7 @@ struct TopicCompletePromptTests {
 
     @Test func militarySystemPromptUsesSpecializedCategories() {
         let policy = ClipCountPolicy(durationMinutes: 10.0, minClips: 1, maxClips: 3, hardMaxClips: 4)
-        let prompt = TopicCompletePrompt.system(policy: policy, domain: "military_news")
+        let prompt = TopicCompletePrompt.system(policy: policy, highlights: quotes, domain: "military_news")
         #expect(prompt.contains("军事新闻直播切片助手"))
         #expect(prompt.contains("能源与战略资源"))
         #expect(prompt.contains("大国博弈"))

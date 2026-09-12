@@ -56,4 +56,16 @@ struct SlicingStrategyTests {
             try strategy.clipCountPolicy(forDurationSeconds: 1200)
         }
     }
+
+    @Test func highlightPolicyFollowsTheSameDurationBands() throws {
+        let strategy = SlicingStrategy.topicCompleteGeneral
+        #expect(try strategy.highlightCountPolicy(forDurationSeconds: 5 * 60) == HighlightCountPolicy(durationMinutes: 5, minHighlights: 2, maxHighlights: 4))
+        #expect(try strategy.highlightCountPolicy(forDurationSeconds: 10 * 60).maxHighlights == 4)
+        #expect(try strategy.highlightCountPolicy(forDurationSeconds: 25 * 60).minHighlights == 4)
+        #expect(try strategy.highlightCountPolicy(forDurationSeconds: 59 * 60).maxHighlights == 12)
+        let long = try strategy.highlightCountPolicy(forDurationSeconds: 2 * 3600)
+        #expect(long.minHighlights == 10 && long.maxHighlights == 20)
+        #expect(long.durationMinutes == 120)
+        #expect(long.minSeconds == 20 && long.maxSeconds == 90)
+    }
 }

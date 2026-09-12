@@ -94,4 +94,26 @@ struct ProjectStoreTests {
         #expect(!FileManager.default.fileExists(atPath: store.directory(of: record.id).path))
         #expect(try store.list().isEmpty)
     }
+
+    // ADR-0024: timed words live in their own file next to the record.
+    @Test func wordsAreSavedBesideTheRecordAndAbsentMeansNil() throws {
+        let (store, dir) = try Self.makeStore()
+        let record = try store.adopt(sourceURL: try Self.picked(in: dir))
+        #expect(try store.loadWords(of: record.id) == nil)
+        let words = [TimedToken(text: "今天", start: 1.04, end: 1.5), TimedToken(text: "先看", start: 1.5, end: 2)]
+        try store.saveWords(words, of: record.id)
+        #expect(try store.loadWords(of: record.id) == words)
+        #expect(try store.load(id: record.id) == record, "the record itself does not grow with the words")
+        try store.deleteWords(of: record.id)
+        #expect(try store.loadWords(of: record.id) == nil)
+        try store.deleteWords(of: record.id) // idempotent
+    }
+
+    @Test func corruptWordsFileIsATypedError() throws {
+        let (store, dir) = try Self.makeStore()
+        let record = try store.adopt(sourceURL: try Self.picked(in: dir))
+        let url = store.directory(of: record.id).appending(path: "words.json")
+        try Data("{not json".utf8).write(to: url)
+        #expect(throws: ProjectStoreError.corruptRecord(url.path)) { try store.loadWords(of: record.id) }
+    }
 }

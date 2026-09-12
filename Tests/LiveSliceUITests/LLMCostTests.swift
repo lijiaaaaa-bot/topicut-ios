@@ -1,4 +1,5 @@
 import Foundation
+import LLMKit
 import Testing
 @testable import LiveSliceUI
 import LiveSliceCore

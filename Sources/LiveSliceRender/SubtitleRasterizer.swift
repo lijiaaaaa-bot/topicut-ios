@@ -1,88 +1,89 @@
 // Why: CATextLayer does not reliably draw text inside AVAssetExportSession's offscreen Core
 // Animation renderer (verified: empty layer bounds, no glyphs). Rasterizing captions with Core
 // Text into a CGImage is deterministic on iOS and macOS and can be pixel-tested without an export.
+// The word-highlight look (ADR-0023) reuses the same layout: a backdrop image per caption, plus one
+// small accent image per word cropped out of an identical layout so glyphs line up exactly.
 
 import CoreGraphics
 import CoreText
 import Foundation
 
-public enum SubtitleRasterizerError: Error, Equatable, Sendable {
+public enum SubtitleRasterizerError: Error, Equatable, Sendable, LocalizedError {
     case contextUnavailable
     case imageUnavailable
+    /// The word range points outside the text or at no glyph (e.g. an empty range).
+    case wordRangeOutOfText(Range<Int>)
+
+    public var errorDescription: String? {
+        switch self {
+        case .contextUnavailable: "无法创建字幕画布"
+        case .imageUnavailable: "无法生成字幕图像"
+        case .wordRangeOutOfText(let range): "高亮词范围越界（\(range.lowerBound)…\(range.upperBound)）"
+        }
+    }
+}
+
+/// Which colours a caption image uses; geometry comes from SubtitleStyle.
+public enum CaptionLook: Equatable, Sendable {
+    /// White fill, black stroke, transparent background (the 1.0 look).
+    case clean
+    /// Dark rounded backdrop behind each line, white fill, thinner stroke.
+    case backdrop
 }
 
 public enum SubtitleRasterizer {
-    /// Draws `text` (white, black stroke, centred, wrapped to `width`) onto a transparent image.
-    /// `height` is the caption band height in pixels; overflow is clipped, never resized silently.
-    public static func image(text: String, width: Int, height: Int, style: SubtitleStyle) throws -> CGImage {
-        guard width > 0, height > 0,
-              let context = CGContext(
-                  data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                  space: CGColorSpaceCreateDeviceRGB(),
-                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              )
-        else { throw SubtitleRasterizerError.contextUnavailable }
-        let band = CGRect(x: 0, y: 0, width: width, height: height)
-        context.clear(band)
-        // Stroke first, then fill on top, so the outline never eats into the glyph body.
-        // The frame always spans the whole band: CTFramesetterSuggestFrameSizeWithConstraints
-        // under-reports the line height when glyphs come from a fallback (CJK) font, and a frame
-        // shorter than its first line draws nothing at all.
-        let passes = [strokeAttributes(style), fillAttributes(style)].map { attributes in
-            let attributed = NSAttributedString(string: text, attributes: attributes)
-            let framesetter = CTFramesetterCreateWithAttributedString(attributed)
-            return CTFramesetterCreateFrame(
-                framesetter, CFRange(location: 0, length: attributed.length), CGPath(rect: band, transform: nil), nil
-            )
-        }
-        context.translateBy(x: 0, y: verticalCentringOffset(of: passes[1], bandHeight: CGFloat(height)))
-        for pass in passes { CTFrameDraw(pass, context) }
+    static let accent = CGColor(red: 1, green: 0.84, blue: 0.04, alpha: 1)
+    static let backdropColor = CGColor(red: 0, green: 0, blue: 0, alpha: 0.58)
+
+    /// Draws `text` (centred, wrapped to `width`) onto a transparent image. `height` is the caption
+    /// band height in pixels; overflow is clipped, never resized silently.
+    public static func image(
+        text: String, width: Int, height: Int, style: SubtitleStyle, look: CaptionLook = .clean,
+        fill: CGColor? = nil, accent: CGColor? = nil
+    ) throws -> CGImage {
+        let layout = try Layout(text: text, width: width, height: height, style: style)
+        let context = try layout.makeContext()
+        if look == .backdrop { layout.drawBackdrop(in: context) }
+        let fillColor = fill ?? white
+        layout.draw(
+            in: context, fill: fillColor, stroke: black,
+            strokeWidth: look == .clean ? style.strokeWidth : style.strokeWidth / 2
+        )
         guard let image = context.makeImage() else { throw SubtitleRasterizerError.imageUnavailable }
         return image
     }
 
-    /// How far to shift a top-aligned frame so its drawn lines sit in the middle of the band.
-    private static func verticalCentringOffset(of frame: CTFrame, bandHeight: CGFloat) -> CGFloat {
-        guard let lines = CTFrameGetLines(frame) as? [CTLine], let first = lines.first, let last = lines.last else { return 0 }
-        var origins = [CGPoint](repeating: .zero, count: lines.count)
-        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
-        var ascent: CGFloat = 0, descent: CGFloat = 0
-        CTLineGetTypographicBounds(first, &ascent, nil, nil)
-        CTLineGetTypographicBounds(last, nil, &descent, nil)
-        guard let firstOrigin = origins.first, let lastOrigin = origins.last else { return 0 }
-        let top = firstOrigin.y + ascent
-        let bottom = lastOrigin.y - descent
-        let desiredTop = (bandHeight + (top - bottom)) / 2
-        return desiredTop - top
+    /// The word at `range` (UTF-16 offsets into `text`) in the accent colour, cropped to its glyphs,
+    /// and the rectangle it occupies in the band (origin bottom-left, band coordinates) — the same
+    /// layout as `image`, so the crop sits exactly over the plain word.
+    public static func wordImage(
+        text: String, range: Range<Int>, width: Int, height: Int, style: SubtitleStyle,
+        accent: CGColor? = nil
+    ) throws -> (image: CGImage, frame: CGRect) {
+        guard !range.isEmpty, range.upperBound <= text.utf16.count else { throw SubtitleRasterizerError.wordRangeOutOfText(range) }
+        let layout = try Layout(text: text, width: width, height: height, style: style)
+        let context = try layout.makeContext()
+        layout.draw(
+            in: context, fill: accent ?? Self.accent, stroke: black, strokeWidth: style.strokeWidth / 2, only: range
+        )
+        guard let full = context.makeImage() else { throw SubtitleRasterizerError.imageUnavailable }
+        let frame = layout.rect(of: range).insetBy(dx: -abs(style.strokeWidth) - 2, dy: -abs(style.strokeWidth) - 2)
+            .intersection(CGRect(x: 0, y: 0, width: width, height: height))
+        guard !frame.isEmpty else { throw SubtitleRasterizerError.wordRangeOutOfText(range) }
+        // CGImage.cropping works in image pixels with the origin at the top-left; the band is y-up.
+        let crop = CGRect(x: frame.minX, y: CGFloat(height) - frame.maxY, width: frame.width, height: frame.height).integral
+        guard let image = full.cropping(to: crop) else { throw SubtitleRasterizerError.imageUnavailable }
+        return (image, crop.flippedBack(bandHeight: CGFloat(height)))
     }
 
-    private static func font(_ style: SubtitleStyle) -> CTFont {
-        CTFontCreateUIFontForLanguage(.emphasizedSystem, style.fontSize, nil)
-            ?? CTFontCreateWithName("PingFangSC-Semibold" as CFString, style.fontSize, nil)
-    }
+    static let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+    static let black = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+    static let clear = CGColor(red: 0, green: 0, blue: 0, alpha: 0)
+}
 
-    private static func paragraph() -> CTParagraphStyle {
-        var alignment = CTTextAlignment.center
-        let setting = withUnsafeMutablePointer(to: &alignment) { pointer in
-            CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: pointer)
-        }
-        return CTParagraphStyleCreate([setting], 1)
-    }
-
-    private static func fillAttributes(_ style: SubtitleStyle) -> [NSAttributedString.Key: Any] {
-        [
-            NSAttributedString.Key(kCTFontAttributeName as String): font(style),
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(red: 1, green: 1, blue: 1, alpha: 1),
-            NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph(),
-        ]
-    }
-
-    private static func strokeAttributes(_ style: SubtitleStyle) -> [NSAttributedString.Key: Any] {
-        [
-            NSAttributedString.Key(kCTFontAttributeName as String): font(style),
-            NSAttributedString.Key(kCTStrokeColorAttributeName as String): CGColor(red: 0, green: 0, blue: 0, alpha: 1),
-            NSAttributedString.Key(kCTStrokeWidthAttributeName as String): abs(style.strokeWidth) * 2,
-            NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph(),
-        ]
+private extension CGRect {
+    /// Back from top-left image coordinates to the y-up band coordinates the layer tree uses.
+    func flippedBack(bandHeight: CGFloat) -> CGRect {
+        CGRect(x: minX, y: bandHeight - maxY, width: width, height: height)
     }
 }

@@ -51,6 +51,18 @@ extension View {
         #endif
     }
 
+    /// Full-screen on iPhone; sheet on macOS (where `fullScreenCover` is unavailable).
+    @ViewBuilder
+    func studioCover<Content: View>(
+        isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        #if os(iOS)
+        self.fullScreenCover(isPresented: isPresented, content: content)
+        #else
+        self.sheet(isPresented: isPresented, content: content)
+        #endif
+    }
+
     /// Plain text entry for identifiers (URLs, model names): no autocorrect, no capitalisation.
     @ViewBuilder
     func identifierField() -> some View {

@@ -6,6 +6,66 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
+- Workbench trim/merge move into a toolbar half-sheet (`ClipEditSheet`); main stack is preview /
+  list / save only. Closing without 应用裁切 discards the draft.
+- 成片工作室 preview uses the selected clip’s live `ClipRenderer.preview` (same path as the workbench),
+  not a black card with `CaptionSample`.
+
+### Fixed
+- Live preview captions (ADR-0024): the player overlay scales font to the on-screen band. Build 23
+  used the full export font on a phone-sized band, so 高亮词 crops were empty and the stage showed
+  `wordRangeOutOfText` instead of the clip.
+
+### Added
+- Phone-first 切片/成片工作室 + workbench purity (ADR-0029): card presets, chip rows, sticky CTA;
+  look/slice settings leave the edit surface (toolbar icons only); Settings drops duplicate look/taste forms.
+- Failure screens gain **分享错误** (`ErrorReport` + ShareLink): version/build + verbatim message for
+  pasting into chat. TestFlight still only auto-uploads process crashes.
+- 切片工作室 (ADR-0028): after on-device ASR the App stops at `awaitingSlice`; presets + density/span
+  live in a dedicated studio; **开始切片** is the only paid call. Workbench taste panel replaced by a
+  切片偏好 entry that confirms re-slice without discarding the EDL until then.
+- 成片工作室 (ADR-0027): full-screen look studio (presets + free caption band/scale/colours +
+  portraitFit letterbox + optional natural-language describe → closed JSON). Workbench entry is a
+  labeled 成片样式 control, not a cramped corner sheet of ClipPoster cards.
+- Topicut 2.0 participatory editing (ADR-0026): **切片偏好** (topic density + highlight span) with
+  explicit 重新切片 via 切片工作室 (ADR-0028); drag **and pinch** the phone-portrait framing on the
+  stage (or reset to Vision auto); live draft head/tail trim while sliding, then 应用裁切; **与下一条合并**.
+  Taste is part of `PipelineReuse.sliceKey` so a preference change never silently reuses an old EDL.
+- Phone-portrait export framing (ADR-0025): 成片样式 defaults live in **设置** (画幅 / 字幕 / 位置);
+  the workbench sheet beside 保存到相册 is a live-preview shortcut, segmented **画幅 | 字幕**.
+  画幅 offers 原比例 (default) or 手机竖屏 (1080×1920). Portrait mode samples faces with Vision
+  across five frames of the clip and crops a 9:16 window around them; no face → centre crop
+  (mode behaviour). Preview rebuilds with the same crop before 保存到相册. Exports gain a
+  `-9x16` filename suffix. Frame/Vision failures stop the export with a typed error.
+- Caption styles for export (ADR-0024): `clean` (the 1.0 look), `highlightWord` (backdrop per line,
+  the spoken word in the accent colour, driven by word timings) and `none`. Word timings from
+  SpeechTranscriber are now kept as `words.json` next to each project. The workbench round button
+  opens export options: look cards plus caption position 下 / 中 / 上. The player shows the chosen
+  look and position as a live overlay while you watch a clip; burning into the MP4 happens only on
+  保存到相册 (`none` = no overlay and no burn). Exports are named
+  `<clipID><styleSuffix><positionSuffix>.mp4`. Projects transcribed by 1.0 have no words: the
+  highlight style is a typed error for them, never a silent fall-back. 重新转写 reruns speech only.
+  The save button names any non-default look/position (保存到相册 · 高亮词 · 上).
+- iPad workbench: two columns. Landscape keeps player, actions and the clip's rationale on the
+  left and the 话题 / 金句 lists on the right; portrait puts the player on top and splits the rest.
+  The rationale is always visible there, so rows lose the ⓘ. iPhone layout unchanged.
+- Highlights (金句): the same slicing call now also returns 20–90 s quotable moments (ADR-0022).
+  The workbench switches between 话题 and 金句 with two pills on the token/cost line; a project
+  sliced by 1.0 shows a panel with the last call's cost and an explicit 重新切片 button instead of
+  re-slicing on its own. Home rows read `N 话题 · M 金句 · date`. The wait screen says
+  「正在找话题和金句」. Ships as 1.1.0 (21) to TestFlight.
+
+### EDL
+- Optional `highlights` (clip array, framework `highlights`, ids `highlights_c_NN`) and
+  `highlight_policy` (`duration_minutes`, `min_highlights`, `max_highlights`, `min_seconds`,
+  `max_seconds`), added 2026-09-08 without a schema bump (EDL_SCHEMA rule 2). Absent = written
+  before the field existed; `[]` = the model found none.
+
+### Changed
+- The OpenAI-compatible chat client (`DeepSeekClient`, `LLMUsage`, …) and the LLM JSON extraction
+  (`LLMJSON`) now come from the shared sibling package `LiJiaKit` (product `LLMKit`) via a local
+  path dependency (ADR-0023). Wire behaviour is unchanged; `LLMResponseParser` keeps only the EDL
+  shape and its invariants. Clone `LiJiaKit` next to this repo before building.
 - Product name is `Topicut` (ADR-0021): App Store name, home-screen label, site and docs. Internal
   target `LiveSlice` and bundle ID `com.jiajiali.liveslice` are unchanged.
 - GitHub repository renamed `liveslice-ios` → `topicut-ios`; the Pages site moved to

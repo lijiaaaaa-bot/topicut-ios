@@ -2,6 +2,7 @@
 // ever touches the network and every test file stays focused on its own module.
 
 import Foundation
+import LLMKit
 @testable import LiveSliceCore
 
 enum TestSupport {
@@ -58,6 +59,22 @@ enum TestSupport {
               ]
             }
           ]
+        }
+      ],
+      "highlights": [
+        {
+          "title": "这次部署更像威慑，不是地面战前奏",
+          "reason": "一句完整判断，带背景",
+          "start": "00:00:16.000",
+          "end": "00:00:22.000",
+          "mode": "continuous",
+          "score": 0.91,
+          "category": "金句",
+          "tags": ["金句"],
+          "segments": [
+            {"start": "00:00:16.000", "end": "00:00:22.000", "keep_reason": "完整表达"}
+          ],
+          "removed_segments": []
         }
       ]
     }

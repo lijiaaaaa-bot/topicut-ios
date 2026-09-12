@@ -4,7 +4,7 @@
 
 ```
 导入视频 → 端侧 ASR（SpeechAnalyzer / SpeechTranscriber）→ SRT 文本 → 用户选定的 AI 服务（默认 DeepSeek，通用 topic_complete 提示词）
-→ 带 schema_version 的 EDL JSON → 即点即播预览（源画面 + 字幕叠加层）→ 保存时 AVFoundation 按原比例导出（剪切、拼接、烧录字幕，长边 ≤ 1920）
+→ 带 schema_version 的 EDL JSON（完整话题 + 金句短片，同一次调用）→ 即点即播预览（源画面 + 字幕叠加层）→ 保存时 AVFoundation 按原比例导出（剪切、拼接、烧录字幕，长边 ≤ 1920）
 → 保存到相册
 ```
 
@@ -35,8 +35,15 @@
 ## 还没有（planned）
 
 - 矩阵变体（同一切片多种时长 / 字幕样式）。
-- App 内编辑 EDL（当前只读）。
+- App 内编辑 EDL（trim / merge；当前只读）—— Topicut 2.0 用户参与的核心（ADR-0026）。
+- 切片 / 金句偏好旋钮（时长、密度、风格）与显式重新切片（ADR-0026）。
+- 可交互的 9:16 裁剪（拖移/捏合窗口，预览即时跟随；ADR-0026）。
 - 真正的后台渲染 / 转写（当前只有屏幕常亮 + 短暂的 UIKit 后台任务；切走太久会中断）。
+
+## 不在本仓库做（requires_new_architecture）
+
+- 多租户后端、云端渲染、非本产品形态的录制采集。
+- Android / HarmonyOS 移植（端侧 Speech + AVFoundation 换栈；云端 LLM 一步可复用思路，见 ADR-0026）。
 
 多租户后端、云端渲染属于 `requires_new_architecture`，不在本仓库演进路径上。
 本项目不使用 ffmpeg (not used)、Whisper (not used)、CoreML (not used)、Metal (not used)。
@@ -55,6 +62,9 @@
 ## 使用
 
 ```bash
+# 前置：共享包 LiJiaKit 与本仓库并列检出（Package.swift 按 ../LiJiaKit 本地路径依赖，ADR-0023）
+ls ../LiJiaKit/Package.swift
+
 # 门禁：8 道守卫 + swift build + swift test（含真实 ASR / 渲染测试，首次会下载 zh_CN 语音模型）
 bash scripts/gate.sh
 
@@ -78,7 +88,7 @@ bash scripts/install_hooks.sh
 
 ```
 App/LiveSlice/               iOS App 入口（@main）、图标、隐私清单
-Sources/LiveSliceCore/       决策层：SRT → DeepSeek → EDL
+Sources/LiveSliceCore/       决策层：SRT → DeepSeek → EDL（chat 客户端与 JSON 提取来自 ../LiJiaKit 的 LLMKit）
 Sources/LiveSliceASR/        端侧语音转写
 Sources/LiveSliceRender/     EDL 执行：合成、裁切、字幕、导出
 Sources/LiveSliceKeychain/   API Key 存取

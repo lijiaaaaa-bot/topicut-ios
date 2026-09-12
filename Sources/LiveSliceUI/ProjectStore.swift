@@ -87,6 +87,46 @@ public struct ProjectStore: Sendable {
     }
 
     private func recordURL(of id: String) -> URL { directory(of: id).appending(path: "project.json") }
+    /// Timed words next to the record, not inside it: a two-hour transcript is tens of thousands of
+    /// tokens and `list()` must not decode them for every row on the home screen (ADR-0024).
+    private func wordsURL(of id: String) -> URL { directory(of: id).appending(path: "words.json") }
+    private func cropFocusURL(of id: String) -> URL { directory(of: id).appending(path: "crop_focus.json") }
+
+    public func saveWords(_ words: [TimedToken], of id: String) throws {
+        try JSONEncoder().encode(words).write(to: wordsURL(of: id), options: .atomic)
+    }
+
+    public func saveCropFocus(_ store: CropFocusStore, of id: String) throws {
+        try JSONEncoder().encode(store).write(to: cropFocusURL(of: id), options: .atomic)
+    }
+
+    /// Empty map when the file is absent (never overridden). Corrupt file is an error.
+    public func loadCropFocus(of id: String) throws -> CropFocusStore {
+        let url = cropFocusURL(of: id)
+        guard FileManager.default.fileExists(atPath: url.path) else { return CropFocusStore() }
+        do {
+            return try JSONDecoder().decode(CropFocusStore.self, from: try Data(contentsOf: url))
+        } catch {
+            throw ProjectStoreError.corruptRecord(url.path)
+        }
+    }
+
+    /// nil when the project was transcribed before words were kept; unreadable is an error.
+    public func loadWords(of id: String) throws -> [TimedToken]? {
+        let url = wordsURL(of: id)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            return try JSONDecoder().decode([TimedToken].self, from: try Data(contentsOf: url))
+        } catch {
+            throw ProjectStoreError.corruptRecord(url.path)
+        }
+    }
+
+    /// Drops saved words (a transcript rerun replaces them; nothing may pair new cues with old words).
+    public func deleteWords(of id: String) throws {
+        let url = wordsURL(of: id)
+        if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+    }
 
     /// Moves an imported file into a new project directory (same volume, so this is a rename).
     public func adopt(sourceURL: URL, fingerprint: String? = nil) throws -> ProjectRecord {

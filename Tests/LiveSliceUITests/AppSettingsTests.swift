@@ -1,4 +1,5 @@
 import Foundation
+import LLMKit
 import Testing
 @testable import LiveSliceUI
 import LiveSliceASR
@@ -76,5 +77,53 @@ struct AppSettingsTests {
         #expect(reloaded.model == "deepseek-reasoner")
         #expect(reloaded.locale?.identifier == "en_US")
         #expect(reloaded.localePreference == .fixed(Locale(identifier: "en_US")))
+    }
+
+    // ADR-0024
+    @Test func captionStyleDefaultsToCleanAndPersists() throws {
+        let suite = "liveslice.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = APIKeyStore(service: "com.jiajiali.liveslice.tests.\(UUID().uuidString)")
+        let settings = try AppSettings(store: store, defaults: defaults)
+        #expect(settings.captionStyle == .clean)
+        settings.captionStyle = .highlightWord
+        #expect(try AppSettings(store: store, defaults: defaults).captionStyle == .highlightWord)
+        defaults.set("neon", forKey: "export.captionStyle")
+        #expect(throws: AppSettingsError.unknownCaptionStyle("neon")) { try AppSettings(store: store, defaults: defaults) }
+    }
+
+    @Test func captionPositionDefaultsToBottomAndPersists() throws {
+        let suite = "liveslice.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = APIKeyStore(service: "com.jiajiali.liveslice.tests.\(UUID().uuidString)")
+        let settings = try AppSettings(store: store, defaults: defaults)
+        #expect(settings.captionPosition == .bottom)
+        settings.captionPosition = .top
+        #expect(try AppSettings(store: store, defaults: defaults).captionPosition == .top)
+        defaults.set("side", forKey: "export.captionPosition")
+        #expect(throws: AppSettingsError.unknownCaptionPosition("side")) { try AppSettings(store: store, defaults: defaults) }
+    }
+
+    @Test func framingModeDefaultsToSourceAspectAndPersists() throws {
+        let suite = "liveslice.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = APIKeyStore(service: "com.jiajiali.liveslice.tests.\(UUID().uuidString)")
+        let settings = try AppSettings(store: store, defaults: defaults)
+        #expect(settings.framingMode == .sourceAspect)
+        settings.framingMode = .phonePortrait
+        #expect(try AppSettings(store: store, defaults: defaults).framingMode == .phonePortrait)
+        defaults.set("cinema", forKey: "export.framingMode")
+        #expect(throws: AppSettingsError.unknownFramingMode("cinema")) { try AppSettings(store: store, defaults: defaults) }
+    }
+
+    @Test func slicingTasteDefaultsAndPersists() throws {
+        let suite = "liveslice.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = APIKeyStore(service: "com.jiajiali.liveslice.tests.\(UUID().uuidString)")
+        let settings = try AppSettings(store: store, defaults: defaults)
+        #expect(settings.slicingTaste == .standard)
+        settings.slicingTaste = SlicingTaste(topicDensity: .more, highlightSpan: .punchy)
+        #expect(try AppSettings(store: store, defaults: defaults).slicingTaste.topicDensity == .more)
+        #expect(try AppSettings(store: store, defaults: defaults).slicingTaste.highlightSpan == .punchy)
     }
 }

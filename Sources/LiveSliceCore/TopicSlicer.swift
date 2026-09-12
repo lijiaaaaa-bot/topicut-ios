@@ -3,6 +3,7 @@
 // `planned`); nothing here anticipates them beyond consuming/producing the contract types.
 
 import Foundation
+import LLMKit
 
 public enum TopicSlicerError: Error, Equatable, Sendable {
     /// The SRT parsed to zero cues; there is nothing to slice.
@@ -19,10 +20,15 @@ public struct TopicSlicer: Sendable {
 
     public let client: DeepSeekClient
     public let strategy: SlicingStrategy
+    public let taste: SlicingTaste
 
-    public init(client: DeepSeekClient, strategy: SlicingStrategy = .topicCompleteGeneral) {
+    public init(
+        client: DeepSeekClient, strategy: SlicingStrategy = .topicCompleteGeneral,
+        taste: SlicingTaste = .standard
+    ) {
         self.client = client
         self.strategy = strategy
+        self.taste = taste
     }
 
     /// Runs the whole vertical slice. Every failure surfaces as a typed error; no partial output.
@@ -33,18 +39,25 @@ public struct TopicSlicer: Sendable {
         guard transcript.count <= strategy.maxTranscriptChars else {
             throw TopicSlicerError.transcriptTooLong(chars: transcript.count, max: strategy.maxTranscriptChars)
         }
-        let policy = try strategy.clipCountPolicy(forDurationSeconds: lastCue.end - firstCue.start)
+        let duration = lastCue.end - firstCue.start
+        let policy = try strategy.clipCountPolicy(forDurationSeconds: duration)
+        let highlightPolicy = try strategy.highlightCountPolicy(forDurationSeconds: duration)
+        let clipped = taste.apply(policy)
+        let highlights = taste.apply(highlightPolicy)
         let messages = [
-            ChatMessage(role: "system", content: TopicCompletePrompt.system(policy: policy, domain: strategy.domain)),
+            ChatMessage(
+                role: "system",
+                content: TopicCompletePrompt.system(policy: clipped, highlights: highlights, domain: strategy.domain)
+            ),
             ChatMessage(role: "user", content: "\(TopicCompletePrompt.userIntro(domain: strategy.domain))\n\n\(transcript)"),
         ]
         let reply: ChatCompletionResult = try await client.chatCompletion(messages: messages, temperature: Self.temperature)
-        let clips = try LLMResponseParser.parseClips(from: reply.content)
+        let slices: LLMSlices = try LLMResponseParser.parse(from: reply.content)
         let info = EDLTranscriptInfo(cueCount: cues.count, startSec: firstCue.start, endSec: lastCue.end)
-        try Self.checkBounds(clips, transcript: info)
+        try Self.checkBounds(slices.clips + slices.highlights, transcript: info)
         return EDLDocument(
-            generatedAt: now, strategy: strategy, clipCountPolicy: policy, transcript: info, clips: clips,
-            llm: reply.usage
+            generatedAt: now, strategy: strategy, clipCountPolicy: clipped, transcript: info, clips: slices.clips,
+            llm: reply.usage, highlights: slices.highlights, highlightPolicy: highlights
         )
     }
 

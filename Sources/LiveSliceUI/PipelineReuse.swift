@@ -4,6 +4,7 @@
 
 import Foundation
 import LiveSliceASR
+import LiveSliceCore
 
 public enum PipelineReuse {
     /// Retired model names and the model they were an alias for, per the provider's changelog.
@@ -13,19 +14,42 @@ public enum PipelineReuse {
         "deepseek-chat": "deepseek-v4-flash",
     ]
 
-    /// What the LLM step depends on besides the transcript: the model and where it is served.
+    /// What the LLM step depends on besides the transcript: model, endpoint, and slicing taste.
     /// The API key is deliberately not part of it — a new key does not change the answer.
-    public static func sliceKey(model: String, baseURL: String) -> String {
+    public static func sliceKey(model: String, baseURL: String, taste: SlicingTaste = .standard) -> String {
         var name = model.trimmingCharacters(in: .whitespaces)
         if let current = retiredModelAliases[name] { name = current }
-        return "\(name)|\(baseURL.trimmingCharacters(in: .whitespaces))"
+        let base = "\(name)|\(baseURL.trimmingCharacters(in: .whitespaces))"
+        if taste == .standard { return base }
+        return "\(base)|\(taste.keyFragment)"
     }
 
     /// A stored key written before an alias retired (`deepseek-chat|…`) means the same model as
-    /// the key the app computes today; compare both in normalized form.
+    /// the key the app computes today; compare both in normalized form. Taste-less keys match
+    /// today's standard taste.
     static func normalizedSliceKey(_ stored: String) -> String {
-        guard let bar = stored.firstIndex(of: "|") else { return stored }
-        return sliceKey(model: String(stored[..<bar]), baseURL: String(stored[stored.index(after: bar)...]))
+        let parts = stored.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 2 else { return stored }
+        let taste: SlicingTaste
+        if parts.count >= 3 {
+            let frag = parts[2].split(separator: "+")
+            let density: TopicDensity
+            if let raw = frag.first, let parsed = TopicDensity(rawValue: String(raw)) {
+                density = parsed
+            } else {
+                density = .standard
+            }
+            let span: HighlightSpan
+            if frag.count > 1, let parsed = HighlightSpan(rawValue: String(frag[1])) {
+                span = parsed
+            } else {
+                span = .standard
+            }
+            taste = SlicingTaste(topicDensity: density, highlightSpan: span)
+        } else {
+            taste = .standard
+        }
+        return sliceKey(model: parts[0], baseURL: parts[1], taste: taste)
     }
 
     /// The saved transcript stands if it exists and the current ASR setting would produce a

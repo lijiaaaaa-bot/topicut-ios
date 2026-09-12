@@ -18,6 +18,25 @@ public struct ClipCountPolicy: Codable, Equatable, Sendable {
     }
 }
 
+/// How many short quotable moments (金句) the same call should return alongside the topic clips.
+/// Recorded in the EDL as `highlight_policy` (optional, ADR-0022).
+public struct HighlightCountPolicy: Codable, Equatable, Sendable {
+    public let durationMinutes: Double
+    public let minHighlights: Int
+    public let maxHighlights: Int
+    /// Seconds a highlight should stay within; guidance for the model, not validated on output.
+    public let minSeconds: Int
+    public let maxSeconds: Int
+
+    public init(durationMinutes: Double, minHighlights: Int, maxHighlights: Int, minSeconds: Int = 20, maxSeconds: Int = 90) {
+        self.durationMinutes = durationMinutes
+        self.minHighlights = minHighlights
+        self.maxHighlights = maxHighlights
+        self.minSeconds = minSeconds
+        self.maxSeconds = maxSeconds
+    }
+}
+
 public struct SlicingStrategy: Codable, Equatable, Sendable {
     /// One row of the duration → clip-count table. `maxMinutes == nil` means "and above".
     public struct DurationRange: Codable, Equatable, Sendable {
@@ -95,6 +114,23 @@ public struct SlicingStrategy: Codable, Equatable, Sendable {
                 maxClips: max(range.minClips, range.maxClips),
                 hardMaxClips: max(range.maxClips, range.hardMaxClips)
             )
+        }
+        throw SlicingStrategyError.noCatchAllRange(durationMinutes: minutes)
+    }
+
+    /// Highlight counts by duration: `(maxMinutes, min, max)`; the last row is the catch-all.
+    /// Not part of the strategy's Codable shape so documents written before highlights still decode.
+    static let standardHighlightRanges: [(maxMinutes: Double?, min: Int, max: Int)] = [
+        (10, 2, 4), (30, 4, 8), (60, 6, 12), (nil, 10, 20),
+    ]
+
+    /// Highlight guidance for a transcript of `seconds`; same duration bands as clips, same
+    /// catch-all rule (a table without one is a programming error, surfaced as the same typed error).
+    public func highlightCountPolicy(forDurationSeconds seconds: Double) throws -> HighlightCountPolicy {
+        let minutes = max(0.0, seconds) / 60.0
+        for row in Self.standardHighlightRanges {
+            if let cap = row.maxMinutes, minutes > cap { continue }
+            return HighlightCountPolicy(durationMinutes: (minutes * 100).rounded() / 100, minHighlights: row.min, maxHighlights: row.max)
         }
         throw SlicingStrategyError.noCatchAllRange(durationMinutes: minutes)
     }

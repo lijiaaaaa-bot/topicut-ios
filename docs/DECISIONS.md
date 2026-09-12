@@ -105,6 +105,55 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 - 理由: 转写按分钟计、DeepSeek 按 token 计费，同一个视频反复导入却每次从零跑，是最直接的资源浪费；而「设置变了还沿用旧结果」是另一种错误——用户换了模型却看到旧模型的切片。把输入记在产物旁边，两种错误都能用同一条规则避免。整文件哈希在两小时 4K 素材上会比导入本身更慢，三窗口采样在实际使用中不会把两个不同录像判成同一个，且任何重编码都会改变所有窗口。API Key 不进指纹：换 Key 不改变答案。
 - 后果: 新增 `SourceFingerprint.swift`、`PipelineReuse.swift`；会话的值类型移到 `SessionTypes.swift`。`ProjectStore.adopt` 接受指纹。同一视频重新导入后落在已有项目上（列表不新增一行）；改模型后重开旧项目会重新调用 DeepSeek 一次并清掉旧导出；改语言设置为「自动」会重跑已用固定语言转写过的项目（自动检测可能选到别的语言，不能假定相同）。首页尚未提示「已识别为同一视频」（planned）。
 
+## ADR-0026 Topicut 2.0：用户参与的切片偏好与可交互裁剪（方向决策）
+
+- 状态: 已采纳，已实现（2026-09-10）
+- 决策: 1.x 市场版冻结后，下一阶段产品重心从「全自动出片」转到「用户可参与」。（1）切片 / 金句：露出可理解的偏好旋钮（时长带、密度、风格/语气等），写入策略与提示词后显式「重新切片」，费用可见；不做静默重切。（2）裁剪：在 ADR-0025 自动跟人之外，允许拖移/捏合 9:16 窗口（或焦点），工作台预览立即跟几何，保存用同一窗口。（3）EDL 在 App 内可微调（trim/merge）——扩展既有 `EDL editing in app (planned)`，仍是客户端决策层。（4）Android / HarmonyOS 不在本仓库演进：ASR 与合成绑在 Speech + AVFoundation；云端 LLM 可移植，端侧链路需新客户端（`requires_new_architecture`）。
+- 理由: 自动结果是好的起点，发片人仍要「按自己的味道」改；实时预览已由 ADR-0014/0025 铺好，缺的是把用户意图写回 EDL/画幅参数。跨端不是性能神话，是框架边界。
+- 后果: 已实现 `SlicingTaste`（设置 + 工作台）、`CropOverride`/`CropFocusPad`（拖+捏）、草稿片头片尾裁切（滑条即时预览，应用才落盘）、`EDLClipMerge`（与下一条合并）。`PipelineReuse.sliceKey` 含 taste。语气/领域 UI、自由手绘裁剪窗仍 planned。
+## ADR-0024 导出字幕样式：简洁 / 高亮词 / 无字幕，词级时间随转写保存
+
+- 状态: 已采纳，已实现（2026-09-08；UI 于 Build 22 接入；Build 23 起试看叠字随选项实时刷新，并增加字幕位置 下/中/上）
+- 决策: 转写不再只落 SRT：`TranscriptionOutcome` 带回 `SpeechTranscriber` 的逐词时间（`TimedToken`，移到 LiveSliceCore），项目目录里单独存为 `words.json`（不进 `project.json`，首页列表不解码它）。导出选项面板里：`CaptionStyle`（`clean` / `highlightWord` / `none`）决定试看叠字的样子，以及导出时是否烧录（`none` = 试看不叠、导出不烧）；`CaptionPosition`（`bottom` / `middle` / `top`）决定字幕带在画面上的位置，试看与烧录共用。选择都存在 defaults 里跨项目记住。导出文件名带样式与位置后缀（默认 clean+bottom 无后缀，老导出仍能识别）。`highlightWord` 的画面由同一份 Core Text 布局（`CaptionLayout`）出两种图：整条底图 + 每个词裁到字形的强调色小图；缺词是 typed error，不回落到普通字幕。旧项目的高亮词入口显示原因和一个「重新转写」按钮；`retranscribe` 只重跑语音识别。试看用 `PreviewCaptionPainter` 叠在播放器上，**不是**把字幕烧进预览帧——烧录只发生在「保存到相册」。工作台一个圆形选项按钮打开半屏面板（字幕样式 + 位置；画幅留给阶段 3）。
+- 理由: 逐词高亮是竖屏短视频的通行字幕样式；词级时间本来就有，1.0 只是丢掉了。试看要实时看到当前选项，导出才决定是否烧进文件——两者共用同一套 look/position，但职责分开，后面才能在导出面板加更多调整而不绑架试看。位置用三档而不是自由拖拽，符合本 app「少操作」：一条选择对所有切片生效。按词裁小图、文件名带后缀、`nil` 词不降级，理由同前。
+- 后果: `TimedToken`、`CaptionStyle`、`CaptionPosition`、`CaptionLayout`、`PlaybackCaptions` / `PreviewCaptionPainter` 新增；`RenderOptions` 带 style+position；`ClipRenderer.preview` 带回 plain/word 窗口供叠字；`SessionDependencies.render` 多 words、style、position；`AppSettings` 记住两者；导出名 `<clipID><styleSuffix><positionSuffix>.mp4`。
+
+## ADR-0023 LLM 客户端与 JSON 提取移入共享包 LiJiaKit（LLMKit）
+
+- 状态: 已采纳，已实现（2026-09-08）
+- 决策: `DeepSeekClient`、`DeepSeekConfiguration`、`ChatMessage`、`LLMUsage`、`ChatCompletionResult` 以及 `LLMResponseParser` 里定位 JSON 对象、描述解码错误的两段逻辑（现为 `LLMJSON`）搬到独立的 SwiftPM 包 `LiJiaKit`（`~/Projects/LiJiaKit`，product `LLMKit`，iOS 17 / macOS 14）。本仓库通过 `.package(path: "../LiJiaKit")` 按本地路径依赖；上架时以 tag 锁版本。搬动原则：原样迁移、编译过、测试绿，不在搬的同时泛化——`LLMKit` 唯一新增的是 `responseFormat: .jsonObject` 可选参数，因为 Evident 的同名客户端一直在发这个字段，合并后它必须还能发。`LLMResponseParser` 只保留 EDL 形状与不变量，错误类型 `LLMResponseError` 不变（从 `LLMJSONError` 映射）。
+- 理由: 同一份 OpenAI 兼容客户端在 liveslice 与 Evident 各写了一遍，「解析模型 JSON → 校验 → 报出缺哪个字段」在四个项目里写了四遍；bug 修四次、每次重新生成都要重新验证，这才是重复的真实成本。抽包的判断标准是「已经有两个以上调用者且带一套花过时间才跑绿的测试」，`DeepSeekClient` 与 JSON 提取都满足。本地路径依赖让一个人开发时改包、改 App 都不需要提交和打 tag；tag 只在某个 App 上架时打，维护中的 App 锁 tag 不主动升。
+- 后果: `Sources/LiveSliceCore/DeepSeekClient.swift` 与其测试从本仓库删除，测试随代码迁到 `LiJiaKit/Tests/LLMKitTests`（19 个用例）；本仓库 gate 不重跑它们，改包后要在包目录另跑 `swift test`。引用这些类型的源文件与测试各加一行 `import LLMKit`。`ARCHITECTURE.yaml` 以 `kind: external_package` 登记 `../LiJiaKit/Package.swift`，守卫 01 因此会在包未检出时失败——这与 `swift build` 的失败一致，是想要的行为。后续按同一标准迁入的候选：MediaCore / MediaRender（本仓库的 SRT、Timecode、字幕烧录），OnDeviceML（hardlaw / my-vision / AgentEngine 的 MLX 注册与下载）。
+
+
+## ADR-0029 切片/成片工作室手机化，工作台只做视觉剪辑
+
+- 状态: 已采纳，已实现（2026-09-10；裁切/合并半屏 sheet 2026-09-11）
+- 决策: （1）切片工作室与成片工作室改为手机优先全屏：大号状态/预览、卡片预设、横向 chip、底部主按钮；不做桌面 Form + 分段控件墙。（2）成片工作台主面只留预览、列表、保存；头尾裁切与合并从工具栏进半屏 sheet（草稿仍驱动上方试看，未应用关闭即丢弃）；切片与成片设置从工具栏全屏打开。（3）全局「设置」只留 AI 服务与语音；不再重复成片/切片偏好表单。
+- 理由: 用户明确不要「Windows 软件搬到 App」的观感；常驻双滑条挤掉列表；两种设置既已独立，就不该混进切片后的视觉编辑。
+- 后果: 删除 `ExportLookSettingsForm` 与工作台 `ExportLookStudioButton`/`SliceStudioButton` 行；`StudioChoice` 共用卡片/chip；`ClipEditSheet` 承接 trim/merge。
+
+## ADR-0028 转写后进入切片工作室，显式开始才调用 AI
+
+- 状态: 已采纳，已实现（2026-09-10）
+- 决策: （1）App 流水线在端侧 ASR 完成后停在 `SessionStage.awaitingSlice`，不自动发 DeepSeek。（2）「切片工作室」是独立全屏环境（预设 `SliceTastePreset` + 细调密度/金句时长），与「成片工作室」对称；工作台只留入口 sheet，不再内嵌整块偏好面板。（3）只有点「开始切片」或工作台确认重新切片（`confirmSlice` / `resliceFromTaste`）才计费；设置页的切片偏好只是默认值。（4）模型/口味变更导致 EDL 过期时同样进工作室，不静默重切。CLI 仍一次跑完（无 UI 门闩）。
+- 理由: 切片设置增多后，转写与切片应拆开；用户要先定味道再付钱，与 ADR-0026「显式重切」一致。
+- 后果: `HomeView` 增加 awaitingSlice 屏；`SliceSession.run` 在缺/过期 EDL 时写 `AwaitingSliceInfo` 并停住；happy-path 测试经 `startThroughSlice`。
+
+## ADR-0027 成片工作室：预设标签 + 自由字幕旋钮 + 自然语言描述
+
+- 状态: 已采纳，已实现（2026-09-10）
+- 决策: （1）成片外观从右下角蜷缩按钮改为独立全屏「成片工作室」；工作台只留「成片样式」入口。（2）工作室主路径是固定预设标签（`LookPreset`）；同时提供自由旋钮：`CaptionTune`（bandY / fontScale / textHex / accentHex）与画幅 `sourceAspect | phonePortrait | portraitFit`。（3）「用一句话描述」经 DeepSeek 落到同一闭集 JSON（`LookDescribeParser`），失败即报错，不半套用。（4）工作室顶部用当前选中切片的 `ClipRenderer.preview`（与工作台同一路径）做效果预览，改选项即重建；失败即报错，不用黑底样板字顶替。
+- 理由: 用户反馈导出设置变慢、变乱，且需要比三档位置更大的自由度；产品仍是切片工具，不是剪映——不做任意特效轨。预览必须是「这条切片会怎样」，黑框样板无法判断画幅/字幕是否贴片。
+- 后果: `RenderOptions.captionTune`；`FramingMode.portraitFit`；`ExportLookStudio` + `LookStudioLivePreview`；全局设置里的简表仍可改默认。NL 描述会调用已配置的 AI 服务并计费。
+
+## ADR-0022 一次切片调用同时输出完整话题与金句短片
+
+- 状态: 已采纳，已实现（2026-09-08）
+- 决策: 切片请求的输出增加第二个顶层数组 `highlights`：从全场挑出 20~90 秒、可独立传播的金句短片（条数按时长 2~4 / 4~8 / 6~12 / 10~20），与 `frameworks` 里的完整话题切片并列，互不替代。键必须存在（可为空数组），缺键即解析错误。EDL 新增可选字段 `highlights`、`highlight_policy`（schema 不升版）。工作台在原 token/费用那一行左侧放「话题 / 金句」两个胶囊切换列表，其余界面不变。1.0 切出的项目（`highlights == nil`）不自动重切：金句页只显示一句说明、上次费用与一个「重新切片」按钮，由用户决定是否再花钱；`SliceSession.reslice()` 只重跑切片步骤。
+- 理由: 完整话题服务的是「发一条讲完了的内容」，金句服务的是「发一条钩子」，长视频用户两者都要（Opus Clip 一类产品只做后者）。同一份字幕已经在请求里，让模型在同一次输出里多给一组短片，增量只是几千个输出 token（两小时视频约 +0.05 元），而分成两次调用会让输入 token 翻倍。`nil` 与 `[]` 必须区分：前者是旧版本没问过，后者是模型认为没有值得单独发的句子；把前者悄悄当后者会让老用户以为功能坏了，自动重切又会在用户不知情时花钱。
+- 后果: `HighlightCountPolicy`、`LLMSlices`、`ResultTabs.swift` 新增；`LLMResponseParser.parseClips` 改为 `parse` 返回两组；`TopicCompletePrompt.system` 多一个参数；highlights 的 id 规则与 clip 相同（`highlights_c_NN`），导出文件名随之，重开项目时两组导出都能恢复；CLI 摘要多打一行 highlights。live_check（3.6 分钟样例）实测 3 条话题 + 3 条金句，金句在短样例上偏短（6~19 秒），提示词已加「不足 20 秒向前后扩语境」，仍需在真实两小时素材上抽检。金句列表与话题列表共用保存、理由、播放逻辑，没有新增交互。
+
 ## ADR-0021 产品名 Topicut
 
 - 状态: 已采纳，已实现（2026-09-08）
@@ -134,19 +183,26 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 - 理由: BYOK 是这个产品能不建后端、不收订阅的前提，但「去 DeepSeek 申请 sk- 开头的密钥」对普通用户是一道门。把门降到最低的办法不是内置开发者密钥（ADR-0007 已否决：会被滥用、成本不可控、审核上等同于隐藏付费），而是：名字代替地址、链接代替搜索、三行事实回答「视频会不会被上传」「要花多少钱」。费用估算来自 `live_check.sh` 的真实用量外推：3.6 分钟样例消耗 prompt 3454 / completion 1681 token，两小时约 11–12 万 prompt token、不到 1 万 completion token；按 DeepSeek V4 Flash 2026-08 起的公开价（输入 0.22–0.44 美元/百万、输出 0.66–1.32 美元/百万，谷/峰）一次切片约 0.03–0.06 美元，即 0.2–0.5 元人民币；价格会变，文案只给量级。没有 OpenAI 预设：其现行模型对本客户端固定发送的 `temperature` 参数的行为没有验证，且国内用户付款不便；需要的人用「自定义」。
 - 后果: 新增 `AIServicePreset.swift`；`AppSettings` 增加 `servicePreset` 与 `apply(_:)`，UserDefaults 键名保留 `deepseek.*` 以读到旧值；`HomeView` 增加 `FirstRunGuide`；`SettingsView` 分区改名「AI 服务」。硅基流动与百炼两个预设按各平台文档的 OpenAI 兼容地址配置，未用真实密钥跑过；`scripts/live_check.sh` 只覆盖 DeepSeek。App Store 提交时：审核备注附开发者自己的测试密钥；隐私标签勾「用户内容 → App 功能」；因默认服务为 DeepSeek，首发不勾意大利。
 
+## ADR-0025 可选手机竖屏画幅：Vision 人脸取景 + 成片样式分栏（部分取代 ADR-0016）
+
+- 状态: 已采纳，已实现（2026-09-10）
+- 决策: （1）默认仍是原比例（ADR-0016）；用户可在「成片样式」里显式选「手机竖屏」导出 1080×1920。该模式用 `VNDetectFaceRectanglesRequest` 在切片时间轴上取 5 帧，按脸面积加权定焦点，再取最大 9:16 窗口；**无人脸时居中裁切**——这是模式约定，不是 API 失败的静默降级。取帧或 Vision 失败抛 `FaceSamplerError`，导出停止。（2）预览与导出同几何：手机竖屏预览走 `videoComposition`，改画幅会重建播放器，保存前就能看到裁切。（3）文件名加 `-9x16`（及既有字幕后缀）。（4）成片样式默认写在全局「设置」里（`ExportLookSettingsForm`：画幅 / 字幕 / 位置）；成片页旁 sheet 只做对着当前画面的试看快捷入口，分段「画幅 | 字幕」，两边绑同一套 `AppSettings`。
+- 理由: 发短视频时常要 9:16；横屏素材硬居中会切掉说话人。定点人脸采样比连续跟踪简单、可复现，够用。选项变多后，默认不应继续挤在导出旁浮层——用户明确要求把设置做成更好用的结构。
+- 后果: 恢复 `VerticalFrame.fillTransform`；新增 `FramingMode` / `FaceFocus` / `FaceSampler`；`AppSettings.framingMode`；`SessionDependencies.render` 再带画幅参数。ADR-0016 的「只有原比例」被本条覆盖为「默认原比例，可选手机竖屏」。逐帧主体跟踪仍不在范围。
+
 ## ADR-0016 只有一种输出画幅：原视频比例（取代 ADR-0010 的三画幅选择）
 
-- 状态: 已采纳，已实现（2026-09-07）
+- 状态: 已取代（部分）→ ADR-0025（2026-09-10）；原比例仍是默认
 - 决策: 删除「竖屏完整 / 竖屏满屏 / 原画比例」选择。预览与导出都使用源视频自己的画幅比例，最长边不超过 1920（`RenderOptions.standard`）。`RenderFraming`、`FramingChoice`、`VerticalFrame.fillTransform` 与按画幅命名的导出文件一并删除；导出文件名改为 `<clipID>.mp4`。
 - 理由: 本产品的价值是「从长视频里找出完整话题并切出来」，不是改画幅。竖屏满屏会裁掉横屏里的人物或 PPT，竖屏完整会把横屏画面缩在中间留大片黑边——两者都在替用户做他没提出的构图决定，且在成片页上占据一整行控件，与「少操作、少认知」的方向相反。首版按原画质、原比例切，是最不需要解释的行为；平台若要求竖屏，用户在发布工具里再裁。
-- 后果: `SessionDependencies.render` 少一个参数；`ClipRenderState.done` 只携带 URL；成片页舞台按第一次预览得到的 `renderSize` 取比例（之前默认 16:9）。旧版本按 `<clipID>-<framing>.mp4` 导出的文件不再被识别为已导出（重开后会重新导出一次）。Vision 主体跟踪裁切仍是 `requires new architecture`，不在此列。
+- 后果: `SessionDependencies.render` 少一个参数；`ClipRenderState.done` 只携带 URL；成片页舞台按第一次预览得到的 `renderSize` 取比例（之前默认 16:9）。旧版本按 `<clipID>-<framing>.mp4` 导出的文件不再被识别为已导出（重开后会重新导出一次）。Vision 主体跟踪裁切仍是 `requires new architecture`，不在此列（定点人脸取景见 ADR-0025）。
 
 ## ADR-0014 成片页即点即播，导出只发生在保存时（取代 ADR-0011 第 2 条）
 
 - 状态: 已采纳，已实现（2026-09-07）
 - 决策: 选中任一切片时不再导出文件。`ClipRenderer.preview` 用与导出完全相同的 `AVMutableComposition`（剪切、拼接、画幅变换）生成 `AVPlayerItem` 直接交给播放器，字幕以 `SubtitleWindow`（合成时间轴）叠在播放器上随时钟刷新。写 MP4（含烧字幕）只在用户点「保存到相册」时进行，进度显示在按钮内；同一画幅已导出过的文件直接复用。删除 `RenderPlan` 与自动预渲染循环。
 - 理由: 切片计划本身（转写 + LLM）对两小时视频只需 1–2 分钟，真正让用户等的是每条切片各自的 1080p 导出。原设计把「看一眼」和「产出文件」绑在一起，导致每点一条都出进度条，用户误以为「切」很慢、只能挑几条看。切片的产物是十几条完整话题，用户要能像翻相册一样逐条看完再决定保存哪些；导出是发布动作，不是浏览动作。
-- 后果: 成片页的唯一等待是亚秒级的合成构建（用切片首帧垫底）。预览字幕是叠加层而非烧录（`animationTool` 仅导出可用），字号与导出略有差异，属可接受的已知偏差。预渲染取消后，切换切片/画幅不再触发任何导出，也不再占用 CPU/电量。`ClipRenderState` 只描述导出状态；列表行上的对勾表示「已导出」。预览的 `AVPlayerItem` 不带 `videoComposition`：合成轨道携带源视频的 `preferredTransform`，由播放层缩放，因此预览就是解码后的源画面，没有合成器这一道；缩放到 1920 上限与字幕烧录只在导出时发生（2026-09-08 起；此前预览也走合成器，iOS 模拟器因像素格式不支持而黑屏/报错，真机正常）。
+- 后果: 成片页的唯一等待是亚秒级的合成构建（用切片首帧垫底）。预览字幕是叠加层而非烧录（`animationTool` 仅导出可用），字号与导出略有差异，属可接受的已知偏差。预渲染取消后，切换切片/画幅不再触发任何导出，也不再占用 CPU/电量。`ClipRenderState` 只描述导出状态；列表行上的对勾表示「已导出」。原比例预览的 `AVPlayerItem` 不带 `videoComposition`：合成轨道携带源视频的 `preferredTransform`，由播放层缩放（2026-09-08 起；此前预览也走合成器，iOS 模拟器因像素格式不支持而黑屏/报错，真机正常）。手机竖屏（ADR-0025）预览必须带 `videoComposition`，否则舞台看不到 9:16 裁切。
 
 ## ADR-0013 语音语言自动识别（禁止用中文模型硬转英文）
 

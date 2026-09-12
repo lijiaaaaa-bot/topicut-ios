@@ -35,14 +35,17 @@ public enum SpeechAssetState: Equatable, Sendable {
     case unsupported
 }
 
-/// Cues plus the locale that actually produced them (after automatic detection when requested).
+/// Cues plus the locale that actually produced them (after automatic detection when requested),
+/// and the timed words the cues were built from (ADR-0023: kept for word-highlight captions).
 public struct TranscriptionOutcome: Equatable, Sendable {
     public let cues: [SRTCue]
     public let locale: Locale
+    public let words: [TimedToken]
 
-    public init(cues: [SRTCue], locale: Locale) {
+    public init(cues: [SRTCue], locale: Locale, words: [TimedToken]) {
         self.cues = cues
         self.locale = locale
+        self.words = words
     }
 }
 
@@ -131,9 +134,11 @@ public struct SpeechTranscriptionService: Sendable {
             progress(0.12)
         }
 
-        let cues = try await SpeechTranscriptionService(locale: locale)
-            .transcribe(audioURL: audioURL) { value in progress(0.12 + value * 0.88) }
-        return TranscriptionOutcome(cues: cues, locale: locale)
+        let service = SpeechTranscriptionService(locale: locale)
+        let words = try await service.transcribeWords(audioURL: audioURL) { value in progress(0.12 + value * 0.88) }
+        let cues = try service.cues(from: words)
+        progress(1)
+        return TranscriptionOutcome(cues: cues, locale: locale, words: words)
     }
 
     /// Extracts the audio track of a video/audio file into `scratchDirectory`, then transcribes it.
@@ -149,6 +154,20 @@ public struct SpeechTranscriptionService: Sendable {
     /// Runs the whole file through SpeechAnalyzer and returns subtitle-shaped cues.
     /// `progress` is the fraction of audio whose results have been finalized.
     public func transcribe(audioURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> [SRTCue] {
+        let cues = try cues(from: try await transcribeWords(audioURL: audioURL, progress: progress))
+        progress(1)
+        return cues
+    }
+
+    /// Sentence-shaped cues from timed words; empty output is the same failure as no speech.
+    public func cues(from words: [TimedToken]) throws -> [SRTCue] {
+        let cues = try CueSegmenter.cues(from: words, policy: policy)
+        guard !cues.isEmpty else { throw SpeechTranscriptionError.noSpeechDetected }
+        return cues
+    }
+
+    /// Runs the whole file through SpeechAnalyzer and returns every timed word, in order.
+    public func transcribeWords(audioURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> [TimedToken] {
         let transcriber = try await makeTranscriber()
         let file = try AVAudioFile(forReading: audioURL)
         let totalSeconds = Double(file.length) / file.processingFormat.sampleRate
@@ -163,10 +182,7 @@ public struct SpeechTranscriptionService: Sendable {
         }
         let tokens = try await collected
         guard !tokens.isEmpty else { throw SpeechTranscriptionError.noSpeechDetected }
-        let cues = try CueSegmenter.cues(from: tokens, policy: policy)
-        guard !cues.isEmpty else { throw SpeechTranscriptionError.noSpeechDetected }
-        progress(1)
-        return cues
+        return tokens
     }
 
     private static func resolveAutomaticLocale(fullAudioURL: URL, scratchDirectory: URL) async throws -> Locale {

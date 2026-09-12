@@ -5,6 +5,7 @@
 // use; an endpoint nobody recognises is shown as 自定义, never silently reassigned.
 
 import Foundation
+import LLMKit
 import LiveSliceCore
 
 public struct AIServicePreset: Identifiable, Equatable, Sendable {

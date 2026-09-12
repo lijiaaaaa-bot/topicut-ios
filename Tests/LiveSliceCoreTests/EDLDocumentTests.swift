@@ -1,4 +1,5 @@
 import Foundation
+import LLMKit
 import Testing
 @testable import LiveSliceCore
 
@@ -89,6 +90,59 @@ struct EDLDocumentTests {
         var text = String(decoding: try document().encode(), as: UTF8.self)
         text = text.replacingOccurrences(of: "\"score\" : 0.8", with: "\"score\" : 7")
         #expect(throws: EDLClipError.scoreOutOfRange(clipID: "f_01_c_01", score: 7)) {
+            try EDLDocument.decode(Data(text.utf8))
+        }
+    }
+
+    // ADR-0022: highlights are optional fields of the same schema version.
+    private func quote(_ id: String = "highlights_c_01", score: Double = 0.9) throws -> EDLClip {
+        try EDLClip(
+            id: id, title: "一句判断", reason: "完整", score: score, tags: ["金句"], category: "金句",
+            frameworkId: "highlights", frameworkTitle: "金句", mode: EDLClip.modeContinuous,
+            segments: [TestSupport.segment(16, 22)], removedSegments: []
+        )
+    }
+
+    @Test func highlightsRoundTripAndDistinguishNilFromEmpty() throws {
+        let policy = HighlightCountPolicy(durationMinutes: 0.35, minHighlights: 2, maxHighlights: 4)
+        let with = EDLDocument(
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000), strategy: .topicCompleteGeneral,
+            clipCountPolicy: ClipCountPolicy(durationMinutes: 0.35, minClips: 1, maxClips: 3, hardMaxClips: 4),
+            transcript: EDLTranscriptInfo(cueCount: 5, startSec: 1, endSec: 22),
+            clips: [try TestSupport.clip()], llm: nil, highlights: [try quote()], highlightPolicy: policy
+        )
+        let text = String(decoding: try with.encode(), as: UTF8.self)
+        #expect(text.contains("\"highlights\" : ["))
+        #expect(text.contains("\"highlight_policy\" : {"))
+        #expect(text.contains("\"max_seconds\" : 90"))
+        let decoded = try EDLDocument.decode(Data(text.utf8))
+        #expect(decoded == with)
+        #expect(decoded.highlights?.count == 1)
+
+        let none = EDLDocument(
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000), strategy: .topicCompleteGeneral,
+            clipCountPolicy: with.clipCountPolicy, transcript: with.transcript,
+            clips: with.clips, llm: nil, highlights: [], highlightPolicy: policy
+        )
+        #expect(try EDLDocument.decode(try none.encode()).highlights == [])
+
+        // Written before the field existed: no key at all decodes to nil, not to [].
+        let legacy = String(decoding: try document().encode(), as: UTF8.self)
+        #expect(!legacy.contains("highlights"))
+        #expect(try EDLDocument.decode(Data(legacy.utf8)).highlights == nil)
+    }
+
+    @Test func decodeRevalidatesHighlightsToo() throws {
+        let policy = HighlightCountPolicy(durationMinutes: 0.35, minHighlights: 2, maxHighlights: 4)
+        let doc = EDLDocument(
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000), strategy: .topicCompleteGeneral,
+            clipCountPolicy: ClipCountPolicy(durationMinutes: 0.35, minClips: 1, maxClips: 3, hardMaxClips: 4),
+            transcript: EDLTranscriptInfo(cueCount: 5, startSec: 1, endSec: 22),
+            clips: [try TestSupport.clip()], llm: nil, highlights: [try quote()], highlightPolicy: policy
+        )
+        var text = String(decoding: try doc.encode(), as: UTF8.self)
+        text = text.replacingOccurrences(of: "\"score\" : 0.9", with: "\"score\" : 3")
+        #expect(throws: EDLClipError.scoreOutOfRange(clipID: "highlights_c_01", score: 3)) {
             try EDLDocument.decode(Data(text.utf8))
         }
     }

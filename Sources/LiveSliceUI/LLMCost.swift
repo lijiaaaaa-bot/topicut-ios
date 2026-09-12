@@ -4,6 +4,7 @@
 // model shows tokens only; a made-up number would be worse than none.
 
 import Foundation
+import LLMKit
 import LiveSliceCore
 
 /// An estimated charge for one slicing call.

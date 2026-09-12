@@ -1,7 +1,5 @@
-// Why: the renderer decided in ADR-0002/ADR-0004 as `planned`, now real: it executes one EDL clip
-// against the source video and writes an MP4 (cut, concat, burnt-in subtitles) in the source's own
-// aspect ratio (longest edge capped at 1920). It consumes the EDL contract only; it never
-// re-decides what to keep.
+// Why: executes one EDL clip against the source and writes an MP4 (cut, concat, burnt-in captions).
+// FramingMode chooses source aspect (ADR-0014) or phone 9:16 face crop (ADR-0025). Never re-slices.
 
 import AVFoundation
 import Foundation
@@ -11,24 +9,53 @@ public enum ClipRendererError: Error, Equatable, Sendable {
     case noVideoTrack(URL)
     case compositionTrackUnavailable
     case exportSessionUnavailable
-    /// The clip's segments sum to zero output time.
     case emptyTimeline(clipID: String)
+    /// Word-highlight captions without saved word timings (pre-ADR-0023). Not downgraded.
+    case wordTimingsUnavailable(clipID: String)
 }
 
 public struct RenderOptions: Sendable, Equatable {
     public let frameRate: Int32
-    public let burnSubtitles: Bool
-    /// Reference style for a 1080×1920 canvas; scaled to the actual output size at render time.
+    public let captionStyle: CaptionStyle
+    public let captionPosition: CaptionPosition
+    /// Free band / scale / colours (ADR-0027); overrides captionPosition geometry when burning in.
+    public let captionTune: CaptionTune
+    public let framingMode: FramingMode
+    /// When set in phonePortrait, skips Vision and uses this normalised focus (ADR-0026).
+    public let cropFocus: CGPoint?
+    /// ≥1; tightens the 9:16 window around cropFocus / auto focus (ADR-0026).
+    public let cropZoom: CGFloat
+    /// Reference for a 1080×1920 canvas; tune replaces bottomInset after scaling.
     public let subtitleStyle: SubtitleStyle
 
-    public init(frameRate: Int32, burnSubtitles: Bool, subtitleStyle: SubtitleStyle) {
+    public init(
+        frameRate: Int32, captionStyle: CaptionStyle, captionPosition: CaptionPosition = .bottom,
+        captionTune: CaptionTune = .standard,
+        framingMode: FramingMode = .sourceAspect, cropFocus: CGPoint? = nil, cropZoom: CGFloat = 1,
+        subtitleStyle: SubtitleStyle = .vertical1080p
+    ) {
         self.frameRate = frameRate
-        self.burnSubtitles = burnSubtitles
+        self.captionStyle = captionStyle
+        self.captionPosition = captionPosition
+        self.captionTune = captionTune
+        self.framingMode = framingMode
+        self.cropFocus = cropFocus
+        self.cropZoom = max(1, cropZoom)
         self.subtitleStyle = subtitleStyle
     }
 
-    /// The one shape the app ships: source aspect ratio, 30 fps, captions burnt in.
-    public static let standard = RenderOptions(frameRate: 30, burnSubtitles: true, subtitleStyle: .vertical1080p)
+    public static let standard = RenderOptions(frameRate: 30, captionStyle: .clean, captionPosition: .bottom)
+
+    public static func standard(
+        captionStyle: CaptionStyle, position: CaptionPosition = .bottom,
+        tune: CaptionTune = .standard, framing: FramingMode = .sourceAspect,
+        cropFocus: CGPoint? = nil, cropZoom: CGFloat = 1
+    ) -> RenderOptions {
+        RenderOptions(
+            frameRate: 30, captionStyle: captionStyle, captionPosition: position,
+            captionTune: tune, framingMode: framing, cropFocus: cropFocus, cropZoom: cropZoom
+        )
+    }
 }
 
 public struct RenderResult: Sendable, Equatable {
@@ -38,16 +65,31 @@ public struct RenderResult: Sendable, Equatable {
     public let subtitleCount: Int
 }
 
-/// A clip playable immediately, without an export: the cut/concat composition plus the orientation
-/// transform as an `AVPlayerItem`, and the subtitle windows (composition time) for a live overlay.
-/// `AVVideoComposition.animationTool` is export-only, so captions are not burnt into the preview.
+/// A clip playable immediately, without an export: the cut/concat composition as an `AVPlayerItem`,
+/// plus caption windows (composition time) for a live overlay. Burning captions into an MP4 is a
+/// separate export step; the overlay only shows the current look/position so the user can see them
+/// while watching (ADR-0024). `AVVideoComposition.animationTool` is export-only.
 public struct ClipPreview: @unchecked Sendable {
     public let playerItem: AVPlayerItem
+    /// Plain cue windows (composition time); used by `.clean`.
     public let subtitles: [SubtitleWindow]
+    /// Word-timed captions when the project has `words.json`; nil for 1.0 transcriptions.
+    public let wordCaptions: [WordCaption]?
     public let renderSize: CGSize
     public let durationSec: Double
     /// Kept alive on purpose (see SourceInfo).
     let source: SourceInfo
+
+    /// Captions for the current look. `.highlightWord` without word timings throws; `.none` hides the overlay.
+    public func captions(style: CaptionStyle, clipID: String) throws -> PlaybackCaptions {
+        switch style {
+        case .none: return .none
+        case .clean: return .plain(subtitles)
+        case .highlightWord:
+            guard let wordCaptions else { throw ClipRendererError.wordTimingsUnavailable(clipID: clipID) }
+            return .words(wordCaptions)
+        }
+    }
 }
 
 public struct ClipRenderer: Sendable {
@@ -58,19 +100,22 @@ public struct ClipRenderer: Sendable {
     }
 
     /// Renders `clip` from `sourceURL` into `outputURL` (overwritten). `progress` receives 0…1.
+    /// `words` are the transcript's timed tokens; required only by `.highlightWord`.
     public func render(
-        sourceURL: URL, clip: EDLClip, cues: [SRTCue], outputURL: URL,
+        sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]? = nil, outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> RenderResult {
         let timeline = try ClipTimeline(clip: clip)
         guard timeline.totalDuration > 0 else { throw ClipRendererError.emptyTimeline(clipID: clip.id) }
+        let captions = try captions(timeline: timeline, clip: clip, cues: cues, words: words)
         let source = try await SourceInfo.load(url: sourceURL)
-        let renderSize = resolvedRenderSize(source: source)
+        let oriented = VerticalFrame.orientedSize(naturalSize: source.naturalSize, preferredTransform: source.preferredTransform)
+        let renderSize = options.framingMode.renderSize(orientedSource: oriented)
+        let focus = try await framingFocus(source: source, clip: clip)
         let (composition, videoTrack) = try Self.buildComposition(source: source, timeline: timeline)
-        let windows = options.burnSubtitles ? timeline.subtitleWindows(for: cues) : []
         let videoComposition = try buildVideoComposition(
             source: source, track: videoTrack, duration: composition.duration,
-            windows: windows, renderSize: renderSize
+            captions: captions, renderSize: renderSize, focus: focus
         )
 
         guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
@@ -92,41 +137,36 @@ public struct ClipRenderer: Sendable {
         progress(1)
         return RenderResult(
             outputURL: outputURL, durationSec: timeline.totalDuration,
-            renderSize: renderSize, subtitleCount: windows.count
+            renderSize: renderSize, subtitleCount: captions.count
         )
     }
 
-    /// Builds the same composition the export uses, but hands it to a player instead of a file.
-    /// Returns in well under a second for any clip length; nothing is decoded until playback.
-    /// Main actor because `AVPlayerItem.init(asset:)` is.
-    @MainActor
-    public func preview(sourceURL: URL, clip: EDLClip, cues: [SRTCue]) async throws -> ClipPreview {
-        let timeline = try ClipTimeline(clip: clip)
-        guard timeline.totalDuration > 0 else { throw ClipRendererError.emptyTimeline(clipID: clip.id) }
-        let source = try await SourceInfo.load(url: sourceURL)
-        let renderSize = resolvedRenderSize(source: source)
-        let (composition, videoTrack) = try Self.buildComposition(source: source, timeline: timeline)
-        // No video composition for playback: the track's own transform orients the frames and the
-        // player layer scales them, so the preview is the decoded source with no compositor pass.
-        // Scaling to `renderSize` and burning captions are export concerns (`render`).
-        videoTrack.preferredTransform = source.preferredTransform
-        let item = AVPlayerItem(asset: composition)
-        return ClipPreview(
-            playerItem: item, subtitles: timeline.subtitleWindows(for: cues),
-            renderSize: renderSize, durationSec: timeline.totalDuration, source: source
-        )
+    /// What gets burnt in, per the chosen style.
+    enum Captions {
+        case none
+        case plain([SubtitleWindow])
+        case words([WordCaption])
+
+        var count: Int {
+            switch self {
+            case .none: 0
+            case .plain(let windows): windows.count
+            case .words(let captions): captions.count
+            }
+        }
     }
 
-    private func resolvedRenderSize(source: SourceInfo) -> CGSize {
-        VerticalFrame.sourceRenderSize(
-            orientedSize: VerticalFrame.orientedSize(
-                naturalSize: source.naturalSize,
-                preferredTransform: source.preferredTransform
-            )
-        )
+    private func captions(timeline: ClipTimeline, clip: EDLClip, cues: [SRTCue], words: [TimedToken]?) throws -> Captions {
+        switch options.captionStyle {
+        case .none: return .none
+        case .clean: return .plain(timeline.subtitleWindows(for: cues))
+        case .highlightWord:
+            guard let words else { throw ClipRendererError.wordTimingsUnavailable(clipID: clip.id) }
+            return .words(try timeline.wordCaptions(for: cues, words: words))
+        }
     }
 
-    private static func buildComposition(
+    static func buildComposition(
         source: SourceInfo, timeline: ClipTimeline
     ) throws -> (AVMutableComposition, AVMutableCompositionTrack) {
         let composition = AVMutableComposition()
@@ -148,16 +188,36 @@ public struct ClipRenderer: Sendable {
         return (composition, video)
     }
 
-    private func buildVideoComposition(
+    func framingFocus(source: SourceInfo, clip: EDLClip) async throws -> CGPoint? {
+        guard options.framingMode == .phonePortrait else { return nil }
+        if let override = options.cropFocus { return override }
+        return try await FaceSampler.focus(
+            asset: source.asset, preferredTransform: source.preferredTransform, naturalSize: source.naturalSize,
+            startSec: clip.startSec, endSec: clip.endSec
+        )
+    }
+
+    func buildVideoComposition(
         source: SourceInfo, track: AVMutableCompositionTrack, duration: CMTime,
-        windows: [SubtitleWindow], renderSize: CGSize
+        captions: Captions, renderSize: CGSize, focus: CGPoint?
     ) throws -> AVMutableVideoComposition {
         let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        let transform = VerticalFrame.fitTransform(
-            naturalSize: source.naturalSize,
-            preferredTransform: source.preferredTransform,
-            renderSize: renderSize
-        )
+        let oriented = VerticalFrame.orientedSize(naturalSize: source.naturalSize, preferredTransform: source.preferredTransform)
+        let transform: CGAffineTransform
+        switch options.framingMode {
+        case .sourceAspect, .portraitFit:
+            transform = VerticalFrame.fitTransform(
+                naturalSize: source.naturalSize, preferredTransform: source.preferredTransform, renderSize: renderSize
+            )
+        case .phonePortrait:
+            let window = FaceFocus.phoneCropWindow(
+                oriented: oriented, focus: focus ?? CGPoint(x: 0.5, y: 0.5), zoom: options.cropZoom
+            )
+            transform = VerticalFrame.fillTransform(
+                naturalSize: source.naturalSize, preferredTransform: source.preferredTransform,
+                cropWindow: window, renderSize: renderSize
+            )
+        }
         layerInstruction.setTransform(transform, at: .zero)
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
@@ -167,10 +227,20 @@ public struct ClipRenderer: Sendable {
         videoComposition.renderSize = renderSize
         videoComposition.frameDuration = CMTime(value: 1, timescale: options.frameRate)
         videoComposition.instructions = [instruction]
-        if !windows.isEmpty {
+        let style = options.captionTune.style(from: options.subtitleStyle, renderSize: renderSize)
+        let textColor = try options.captionTune.textCGColor()
+        let accentColor = try options.captionTune.accentCGColor()
+        switch captions {
+        case .none: break
+        case .plain(let windows) where windows.isEmpty: break
+        case .words(let list) where list.isEmpty: break
+        case .plain(let windows):
             videoComposition.animationTool = try SubtitleLayerBuilder.animationTool(
-                windows: windows, renderSize: renderSize,
-                style: options.subtitleStyle.scaled(to: renderSize)
+                windows: windows, renderSize: renderSize, style: style, fill: textColor
+            )
+        case .words(let list):
+            videoComposition.animationTool = try SubtitleLayerBuilder.animationTool(
+                captions: list, renderSize: renderSize, style: style, fill: textColor, accent: accentColor
             )
         }
         return videoComposition
@@ -178,26 +248,5 @@ public struct ClipRenderer: Sendable {
 
     private static func time(_ seconds: Double) -> CMTime {
         CMTime(seconds: seconds, preferredTimescale: 600)
-    }
-}
-
-/// Everything the renderer needs to know about the source, loaded once.
-struct SourceInfo: @unchecked Sendable {
-    /// Kept alive on purpose: AVAssetTrack only weakly references its asset, and a composition
-    /// built from tracks of a deallocated asset exports with an opaque -12780.
-    let asset: AVURLAsset
-    let videoTrack: AVAssetTrack
-    let audioTrack: AVAssetTrack?
-    let naturalSize: CGSize
-    let preferredTransform: CGAffineTransform
-
-    static func load(url: URL) async throws -> SourceInfo {
-        let asset = AVURLAsset(url: url)
-        guard let video = try await asset.loadTracks(withMediaType: .video).first else {
-            throw ClipRendererError.noVideoTrack(url)
-        }
-        let audio = try await asset.loadTracks(withMediaType: .audio).first
-        let (naturalSize, transform) = try await video.load(.naturalSize, .preferredTransform)
-        return SourceInfo(asset: asset, videoTrack: video, audioTrack: audio, naturalSize: naturalSize, preferredTransform: transform)
     }
 }

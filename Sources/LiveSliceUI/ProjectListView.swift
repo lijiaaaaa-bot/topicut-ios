@@ -67,7 +67,10 @@ private struct ProjectRow: View {
 
     private var status: String {
         let date = record.createdAt.formatted(.dateTime.month().day())
-        if record.isSliced { return "\(record.clipCount) 条 · \(date)" }
+        if record.isSliced {
+            if let quotes = record.document?.highlights?.count { return "\(record.clipCount) 话题 · \(quotes) 金句 · \(date)" }
+            return "\(record.clipCount) 话题 · \(date)"
+        }
         if record.isTranscribed { return "已转写，点击继续找话题" }
         return "未处理，点击继续"
     }

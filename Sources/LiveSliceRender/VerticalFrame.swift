@@ -38,6 +38,23 @@ public enum VerticalFrame {
         )
     }
 
+    /// Orients the source, crops `cropWindow` (in oriented pixels, top-left origin) and scales that
+    /// window to fill `renderSize` exactly. Used by `.phonePortrait` (ADR-0025).
+    public static func fillTransform(
+        naturalSize: CGSize, preferredTransform: CGAffineTransform,
+        cropWindow: CGRect, renderSize: CGSize
+    ) -> CGAffineTransform {
+        let orientedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
+        let toOrigin = preferredTransform.concatenating(
+            CGAffineTransform(translationX: -orientedRect.minX, y: -orientedRect.minY)
+        )
+        let scaleX = renderSize.width / cropWindow.width
+        let scaleY = renderSize.height / cropWindow.height
+        let shift = CGAffineTransform(translationX: -cropWindow.minX, y: -cropWindow.minY)
+        let scale = CGAffineTransform(scaleX: scaleX, y: scaleY)
+        return toOrigin.concatenating(shift).concatenating(scale)
+    }
+
     private static func even(_ value: CGFloat) -> CGFloat {
         max(2, floor(value / 2) * 2)
     }

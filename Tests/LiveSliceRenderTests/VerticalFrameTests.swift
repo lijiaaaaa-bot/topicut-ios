@@ -54,4 +54,18 @@ struct VerticalFrameTests {
         )
         #expect(VerticalFrame.sourceRenderSize(orientedSize: CGSize(width: 640, height: 360)) == CGSize(width: 640, height: 360))
     }
+
+    @Test func fillTransformMapsCropWindowOntoPhoneCanvas() {
+        let crop = CGRect(x: 603.75, y: 0, width: 607.5, height: 1080) // centred 9:16 in 1920×1080
+        let transform = VerticalFrame.fillTransform(
+            naturalSize: CGSize(width: 1920, height: 1080),
+            preferredTransform: .identity,
+            cropWindow: crop,
+            renderSize: CGSize(width: 1080, height: 1920)
+        )
+        // Same Y convention as fitTransform (no AV bottom-left flip in the matrix itself).
+        #expect(approx(CGPoint(x: crop.minX, y: crop.minY).applying(transform), CGPoint(x: 0, y: 0)))
+        #expect(approx(CGPoint(x: crop.maxX, y: crop.maxY).applying(transform), CGPoint(x: 1080, y: 1920)))
+        #expect(approx(CGPoint(x: crop.midX, y: crop.midY).applying(transform), CGPoint(x: 540, y: 960)))
+    }
 }
