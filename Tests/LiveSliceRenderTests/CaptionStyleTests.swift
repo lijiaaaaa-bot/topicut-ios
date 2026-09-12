@@ -11,6 +11,7 @@ struct CaptionStyleTests {
     }
 
     @Test func onlyNoneSkipsBurningAndRawValuesRoundTrip() throws {
+        #expect(CaptionStyle.allCases.filter(\.requiresWordTimings) == [.highlightWord])
         #expect(CaptionStyle.allCases.filter { !$0.burnsCaptions } == [.none])
         for style in CaptionStyle.allCases {
             #expect(CaptionStyle(rawValue: style.rawValue) == style)

@@ -26,6 +26,15 @@ public enum TopicDensity: String, CaseIterable, Codable, Equatable, Sendable {
         }
     }
 
+    /// Third line on the 切片工作室 density card (qualitative; counts stay duration-adaptive).
+    public var studioTag: String {
+        switch self {
+        case .fewer: "精炼 · 重点突出"
+        case .standard: "平衡 · 通用"
+        case .more: "详尽 · 好挑选"
+        }
+    }
+
     /// Multiplier applied to min/max/hardMax clip counts (then clamped to ≥1).
     public var clipScale: Double {
         switch self {
@@ -55,6 +64,15 @@ public enum HighlightSpan: String, CaseIterable, Codable, Equatable, Sendable {
         case .punchy: "约 12–45 秒"
         case .standard: "约 20–90 秒"
         case .roomy: "约 40–150 秒"
+        }
+    }
+
+    /// Chip label in 切片工作室 — representative seconds for the band, not a hard cap.
+    public var studioChip: String {
+        switch self {
+        case .punchy: "15秒"
+        case .standard: "30秒"
+        case .roomy: "90秒"
         }
     }
 

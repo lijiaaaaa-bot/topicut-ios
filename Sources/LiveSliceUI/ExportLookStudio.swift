@@ -1,5 +1,5 @@
-// Why: ADR-0027/0029 — 成片 look is a phone-first studio: live clip preview owns the screen;
-// presets are cards; knobs sit under a short tab strip. Workbench opens this via toolbar.
+// Why: ADR-0027/0030 — 成片 look is preset cards + framing chips first. Dense knobs and NL
+// describe sit under 高级. Phone-portrait crop lives on this preview, not the workbench.
 
 import LiveSliceCore
 import LiveSliceRender
@@ -16,27 +16,19 @@ struct ExportLookStudio: View {
     let words: [TimedToken]?
     let cropFocus: CGPoint?
     let cropZoom: CGFloat
+    var onCropFocus: ((CGPoint) -> Void)? = nil
+    var onCropZoom: ((CGFloat) -> Void)? = nil
+    var onCropReset: (() -> Void)? = nil
     let hasWords: Bool
     let retranscribe: () -> Void
     let onDescribe: ((String) async throws -> LookDescribeDraft)?
     let dismiss: () -> Void
 
-    private enum Pane: String, CaseIterable, Identifiable {
-        case presets, tune, describe
-        var id: String { rawValue }
-        var title: String {
-            switch self {
-            case .presets: "预设"
-            case .tune: "调节"
-            case .describe: "描述"
-            }
-        }
-    }
-
-    @State private var pane: Pane = .presets
+    @State private var showAdvanced = false
     @State private var prompt = ""
     @State private var describeError: String?
     @State private var describing = false
+    @State private var wordGateMessage: String?
 
     var body: some View {
         ZStack {
@@ -46,28 +38,22 @@ struct ExportLookStudio: View {
                 LookStudioLivePreview(
                     sourceURL: sourceURL, clip: clip, cues: cues, words: words,
                     style: style, position: position, tune: tune, framing: framing,
-                    cropFocus: cropFocus, cropZoom: cropZoom
+                    cropFocus: cropFocus, cropZoom: cropZoom,
+                    onCropFocus: onCropFocus, onCropZoom: onCropZoom, onCropReset: onCropReset
                 )
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
                 .frame(maxHeight: framing == .sourceAspect ? 200 : 360)
-                panePicker
-                    .padding(.top, 16)
                 ScrollView {
-                    Group {
-                        switch pane {
-                        case .presets: presetPane
-                        case .tune: tunePane
-                        case .describe: describePane
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, 28)
+                    primaryPane
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .padding(.bottom, 28)
                 }
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { refuseHighlightWithoutWords() }
     }
 
     private var header: some View {
@@ -87,28 +73,12 @@ struct ExportLookStudio: View {
         .padding(.bottom, 4)
     }
 
-    private var panePicker: some View {
-        HStack(spacing: 6) {
-            ForEach(Pane.allCases) { item in
-                let on = pane == item
-                Button {
-                    withAnimation(StudioTheme.motion) { pane = item }
-                } label: {
-                    Text(item.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(on ? .black : .white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(on ? StudioTheme.accent : StudioTheme.raised, in: Capsule())
-                }
-                .buttonStyle(.plain)
+    private var primaryPane: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            StudioChipRow(values: FramingMode.allCases, selection: $framing) {
+                ExportLookText.framingTitle($0)
             }
-        }
-        .padding(.horizontal, 20)
-    }
-
-    private var presetPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
+            .padding(.horizontal, -20)
             ForEach(LookPreset.allCases) { preset in
                 StudioChoiceCard(
                     title: preset.title,
@@ -117,84 +87,31 @@ struct ExportLookStudio: View {
                 ) {
                     apply(preset)
                 }
+                .opacity(preset.requiresWordTimings && !hasWords ? 0.5 : 1)
             }
-        }
-    }
-
-    private var tunePane: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(ExportLookText.framingNote(framing))
-                .font(.caption)
-                .foregroundStyle(StudioTheme.muted)
-            StudioChipRow(values: FramingMode.allCases, selection: $framing) {
-                ExportLookText.framingTitle($0)
+            if let wordGateMessage {
+                wordGate(wordGateMessage)
             }
-            .padding(.horizontal, -20)
-
-            Text(ExportLookText.styleNote(style, hasWords: hasWords))
-                .font(.caption)
-                .foregroundStyle(StudioTheme.muted)
-            StudioChipRow(values: CaptionStyle.allCases, selection: $style) {
-                ExportLookText.styleTitle($0)
-            }
-            .padding(.horizontal, -20)
-
-            if style == .highlightWord, !hasWords {
-                Button("重新转写", action: retranscribe)
-                    .buttonStyle(QuietButtonStyle())
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                Slider(value: bandYBinding, in: 0...1)
-                Text("字幕带 \(Int(tune.bandY * 100))%")
-                    .font(.caption)
-                    .foregroundStyle(StudioTheme.muted)
-                Slider(value: fontScaleBinding, in: 0.6...1.8)
-                Text(String(format: "字号 ×%.1f", tune.fontScale))
-                    .font(.caption)
-                    .foregroundStyle(StudioTheme.muted)
-                HStack(spacing: 10) {
-                    ForEach(LookColorChip.textChoices, id: \.self) { hex in
-                        LookColorChip.swatch(hex, selected: tune.textHex == hex) {
-                            tune = CaptionTune(
-                                bandY: tune.bandY, fontScale: tune.fontScale,
-                                textHex: hex, accentHex: tune.accentHex
-                            )
-                        }
-                    }
-                }
-                HStack(spacing: 10) {
-                    ForEach(LookColorChip.accentChoices, id: \.self) { hex in
-                        LookColorChip.swatch(hex, selected: tune.accentHex == hex) {
-                            tune = CaptionTune(
-                                bandY: tune.bandY, fontScale: tune.fontScale,
-                                textHex: tune.textHex, accentHex: hex
-                            )
-                        }
-                    }
-                }
-            }
-            .disabled(!style.burnsCaptions)
-            .opacity(style.burnsCaptions ? 1 : 0.35)
-        }
-    }
-
-    private var describePane: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            TextField("竖屏跟人，大白字靠下", text: $prompt, axis: .vertical)
-                .lineLimit(3...5)
-                .padding(12)
-                .background(StudioTheme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            if let describeError {
-                Text(describeError).font(.footnote).foregroundStyle(.orange)
-            }
-            Button {
-                Task { await runDescribe() }
+            DisclosureGroup(isExpanded: $showAdvanced) {
+                LookTunePane(
+                    style: gatedStyle, tune: $tune, framing: framing,
+                    hasWords: hasWords, retranscribe: retranscribe,
+                    bandY: bandYBinding, fontScale: fontScaleBinding
+                )
+                .padding(.top, 12)
+                LookDescribePane(
+                    prompt: $prompt, describeError: describeError, describing: describing,
+                    canSubmit: !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && !describing && onDescribe != nil,
+                    submit: { Task { await runDescribe() } }
+                )
+                .padding(.top, 16)
             } label: {
-                if describing { ProgressView() } else { Text("套用").frame(maxWidth: .infinity) }
+                Text("高级")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(StudioTheme.muted)
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || describing || onDescribe == nil)
+            .tint(StudioTheme.accent)
         }
     }
 
@@ -202,11 +119,49 @@ struct ExportLookStudio: View {
         style == preset.style && framing == preset.framing && tune == preset.tune
     }
 
+    private var gatedStyle: Binding<CaptionStyle> {
+        Binding(
+            get: { style },
+            set: { requested in
+                guard acceptStyle(requested) else { return }
+                style = requested
+            }
+        )
+    }
+
+    private func wordGate(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Button("重新转写", action: retranscribe)
+                .buttonStyle(QuietButtonStyle())
+        }
+    }
+
+    /// Missing words cannot select 高亮词 — keep a safe style and say why (ADR-0005 / 0024).
+    private func acceptStyle(_ requested: CaptionStyle) -> Bool {
+        if !ExportLookText.canSelect(requested, hasWords: hasWords) {
+            wordGateMessage = ExportLookText.styleNote(.highlightWord, hasWords: false)
+            if style.requiresWordTimings { style = .clean }
+            showAdvanced = true
+            return false
+        }
+        wordGateMessage = nil
+        return true
+    }
+
+    private func refuseHighlightWithoutWords() {
+        _ = acceptStyle(style)
+    }
+
     private func apply(_ preset: LookPreset) {
-        style = preset.style
         framing = preset.framing
         tune = preset.tune
         position = nearestPosition(for: preset.tune.bandY)
+        if acceptStyle(preset.style) {
+            style = preset.style
+        }
     }
 
     private func nearestPosition(for bandY: Double) -> CaptionPosition {
@@ -241,10 +196,14 @@ struct ExportLookStudio: View {
         defer { describing = false }
         do {
             let draft = try await onDescribe(prompt)
-            style = draft.style
             framing = draft.framing
             tune = draft.tune
             position = nearestPosition(for: draft.tune.bandY)
+            if acceptStyle(draft.style) {
+                style = draft.style
+            } else {
+                describeError = ExportLookText.styleNote(.highlightWord, hasWords: false)
+            }
         } catch {
             describeError = ErrorText.describe(error)
         }

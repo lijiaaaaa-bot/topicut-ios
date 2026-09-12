@@ -23,4 +23,7 @@ public enum CaptionStyle: String, CaseIterable, Codable, Equatable, Sendable {
     }
 
     public var burnsCaptions: Bool { self != .none }
+
+    /// `.highlightWord` needs `words.json`; selecting it without timings is a typed refusal, not a downgrade.
+    public var requiresWordTimings: Bool { self == .highlightWord }
 }

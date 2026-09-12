@@ -2,9 +2,8 @@
 // same cut/concat composition the export uses — so nothing is written to disk until the user saves.
 // One AVQueuePlayer lives as long as the stage and loops via AVPlayerLooper. Captions cannot be
 // burnt into live playback (`animationTool` is export-only), so the overlay is drawn by the same
-// SubtitleRasterizer the export uses, in the current CaptionStyle (ADR-0024): switching the export
-// option updates the stage immediately. The audio session is switched to `.playback` before the
-// first play: the default `.soloAmbient` obeys the ring/silent switch.
+// SubtitleRasterizer the export uses (ADR-0024). A caption look error must not cover the video;
+// only AVPlayer/looper failures use the full-stage overlay.
 
 import AVFoundation
 import AVKit
@@ -24,11 +23,13 @@ struct ClipPlayerView: View {
     @State private var captionKey = ""
     @State private var viewSize: CGSize = .zero
     @State private var playbackError: String?
+    @State private var captionError: String?
 
     var body: some View {
         GeometryReader { proxy in
             VideoPlayer(player: player)
                 .overlay(alignment: .bottom) { captionOverlay }
+                .overlay(alignment: .top) { captionErrorBanner }
                 .overlay { if let playbackError { PlaybackFailure(message: playbackError) } }
                 .onAppear {
                     viewSize = proxy.size
@@ -100,10 +101,26 @@ struct ClipPlayerView: View {
                 renderSize: preview.renderSize, viewSize: viewSize
             )
             withAnimation(.easeOut(duration: 0.12)) { caption = next }
+            captionError = nil
         } catch {
-            playbackError = ErrorText.describe(error)
+            captionError = ErrorText.describe(error)
             caption = nil
             captionKey = ""
+        }
+    }
+
+    @ViewBuilder
+    private var captionErrorBanner: some View {
+        if let captionError {
+            Text(captionError)
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .padding(8)
+                .frame(maxWidth: .infinity)
+                .background(.black.opacity(0.55))
         }
     }
 
@@ -160,6 +177,7 @@ struct ClipPlayerView: View {
         player.removeAllItems()
         caption = nil
         captionKey = ""
+        captionError = nil
         playbackError = nil
     }
 }

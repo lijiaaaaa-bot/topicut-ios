@@ -87,9 +87,8 @@ struct ClipStage: View {
     }
 }
 
-/// The table of contents: every clip as one row — first frame, number, full title, kept duration,
-/// export state — so the whole result is readable without selecting anything. Tapping a row plays
-/// it on the stage; tapping the selected row again opens its rationale.
+/// The table of contents: number, first frame, title, duration, export mark. Tapping a row plays
+/// it on the stage; the ⋮ opens 依据 (hidden on iPad where the rationale is already on screen).
 struct ClipTable: View {
     let sourceURL: URL
     let clips: [EDLClip]
@@ -104,17 +103,8 @@ struct ClipTable: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 6) {
                     ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
-                        Button {
-                            if clip.id == selectedID {
-                                showRationale?()
-                            } else {
-                                withAnimation(StudioTheme.motion) { select(clip.id) }
-                            }
-                        } label: {
-                            row(index: index + 1, clip: clip)
-                        }
-                        .buttonStyle(.plain)
-                        .id(clip.id)
+                        row(index: index + 1, clip: clip)
+                            .id(clip.id)
                     }
                 }
                 .padding(.vertical, 4)
@@ -127,40 +117,61 @@ struct ClipTable: View {
 
     private func row(index: Int, clip: EDLClip) -> some View {
         let isSelected = clip.id == selectedID
-        return HStack(spacing: 12) {
-            ClipPoster(url: sourceURL, seconds: clip.startSec, maximumSize: CGSize(width: 180, height: 320))
-                .frame(width: 44, height: 62)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            VStack(alignment: .leading, spacing: 4) {
+        return HStack(spacing: 4) {
+            Button {
+                if clip.id == selectedID {
+                    showRationale?()
+                } else {
+                    withAnimation(StudioTheme.motion) { select(clip.id) }
+                }
+            } label: {
+                rowLabel(index: index, clip: clip)
+            }
+            .buttonStyle(.plain)
+            if let showRationale {
+                Menu {
+                    Button("依据") {
+                        select(clip.id)
+                        showRationale()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(StudioTheme.muted)
+                        .frame(width: 32, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("依据")
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .background(isSelected ? StudioTheme.raised : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func rowLabel(index: Int, clip: EDLClip) -> some View {
+        HStack(spacing: 12) {
+            Text(String(format: "%02d", index))
+                .font(.body.weight(.semibold).monospacedDigit())
+                .foregroundStyle(StudioTheme.muted)
+                .frame(width: 28, alignment: .leading)
+            ClipPoster(url: sourceURL, seconds: clip.startSec, maximumSize: CGSize(width: 180, height: 120))
+                .frame(width: 52, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
                 Text(clip.title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2)
+                    .lineLimit(1)
                 HStack(spacing: 8) {
-                    Text(String(format: "%02d", index))
-                        .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(isSelected ? StudioTheme.accent : StudioTheme.muted)
-                    Text(TimeText.compact(clip.keptDurationSec))
-                        .font(.caption)
+                    Text(TimeText.clock(clip.keptDurationSec))
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(StudioTheme.muted)
                     exportMark(for: clip)
                 }
             }
             Spacer(minLength: 6)
-            if isSelected, showRationale != nil {
-                Image(systemName: "info.circle")
-                    .font(.body)
-                    .foregroundStyle(StudioTheme.accent)
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .background(isSelected ? StudioTheme.raised : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(alignment: .leading) {
-            if isSelected {
-                Capsule().fill(StudioTheme.accentGradient).frame(width: 3, height: 34)
-            }
         }
         .contentShape(Rectangle())
     }

@@ -133,15 +133,21 @@ public enum PreviewCaptionPainter {
             text: caption.text, width: width, height: height, style: style, look: .backdrop, fill: fill
         )
         guard let word = caption.words.last(where: { seconds >= $0.start && seconds < $0.end }) else { return backdrop }
-        let (accentImage, frame) = try SubtitleRasterizer.wordImage(
-            text: caption.text, range: word.range, width: width, height: height, style: style, accent: accent
-        )
+        let overlay: (image: CGImage, frame: CGRect)
+        do {
+            overlay = try SubtitleRasterizer.wordImage(
+                text: caption.text, range: word.range, width: width, height: height, style: style, accent: accent
+            )
+        } catch let error as SubtitleRasterizerError {
+            if case .wordRangeOutOfText = error { return backdrop }
+            throw error
+        }
         guard let context = CGContext(
             data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { throw SubtitleRasterizerError.contextUnavailable }
         context.draw(backdrop, in: CGRect(x: 0, y: 0, width: width, height: height))
-        context.draw(accentImage, in: frame)
+        context.draw(overlay.image, in: overlay.frame)
         guard let image = context.makeImage() else { throw SubtitleRasterizerError.imageUnavailable }
         return image
     }

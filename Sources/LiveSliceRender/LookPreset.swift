@@ -48,6 +48,8 @@ public enum LookPreset: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    public var requiresWordTimings: Bool { style.requiresWordTimings }
+
     public var tune: CaptionTune {
         switch self {
         case .sourceClean, .fitClean, .phonePlain, .sourceNone:

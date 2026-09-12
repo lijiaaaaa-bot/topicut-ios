@@ -1,5 +1,5 @@
-// Why: toolbar + studio/clip-edit sheets for the workbench — kept out of ClipListView so layout
-// stays under the god-object budget (ADR-0029). Trim/merge live in a half-sheet, not the main stack.
+// Why: workbench chrome — quiet edit + look toolbar icons, edit half-sheet, look/slice covers.
+// Slice re-entry is the tab-bar overflow, not a third toolbar glyph (ADR-0030).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -25,7 +25,7 @@ extension ClipListView {
             .padding(.bottom, 12)
             .background(StudioTheme.background)
             .animation(StudioTheme.motion, value: clip.id)
-            .toolbar { workbenchToolbar(clip: clip) }
+            .toolbar { workbenchToolbar }
             .modifier(WorkbenchStudioCovers(
                 result: result,
                 clip: clip,
@@ -65,7 +65,7 @@ extension ClipListView {
     }
 
     @ToolbarContentBuilder
-    func workbenchToolbar(clip: EDLClip) -> some ToolbarContent {
+    var workbenchToolbar: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button { session.reset() } label: {
                 Image(systemName: "chevron.left")
@@ -73,25 +73,13 @@ extension ClipListView {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button { openClipEdit = true } label: {
-                Image(systemName: "timeline.selection")
+                Image(systemName: "scissors")
             }
             .accessibilityLabel("裁切与合并")
-            Button { openSliceStudio = true } label: {
-                Image(systemName: "scissors")
-                    .overlay(alignment: .topTrailing) {
-                        if session.sliceTasteStale {
-                            Circle().fill(StudioTheme.accent).frame(width: 7, height: 7).offset(x: 3, y: -3)
-                        }
-                    }
-            }
-            .accessibilityLabel(session.sliceTasteStale ? "按新偏好重新切片" : "切片")
             Button { openLookStudio = true } label: {
-                Image(systemName: "paintpalette")
+                Image(systemName: "slider.horizontal.3")
             }
             .accessibilityLabel("成片样式")
-            if case .done(let url) = renderState(of: clip) {
-                ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-            }
         }
     }
 
@@ -109,8 +97,9 @@ extension ClipListView {
             canMerge = false
         }
         return ClipEditSheet(
-            title: clip.title,
             duration: clip.endSec - clip.startSec,
+            originStart: clip.startSec,
+            sourceURL: result.sourceURL,
             canMerge: canMerge,
             onDraftTrim: { leading, trailing in
                 session.setDraftTrim(clipID: clip.id, leading: leading, trailing: trailing)
@@ -150,6 +139,9 @@ private struct WorkbenchStudioCovers: ViewModifier {
                     cues: result.cues, words: result.words,
                     cropFocus: session.cropFocus(for: clip.id),
                     cropZoom: session.cropZoom(for: clip.id),
+                    onCropFocus: { session.setCropFocus($0, for: clip.id) },
+                    onCropZoom: { session.setCropZoom($0, for: clip.id) },
+                    onCropReset: { session.clearCropOverride(for: clip.id) },
                     hasWords: result.words?.isEmpty == false,
                     retranscribe: { openLook = false; confirmRetranscribe = true },
                     onDescribe: { prompt in try await session.describeLook(prompt) },

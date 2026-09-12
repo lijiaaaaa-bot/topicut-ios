@@ -1,5 +1,5 @@
-// Why: workbench — live preview, topic/highlight lists, crop on stage, export-on-save (ADR-0026).
-// Trim/merge open from the toolbar half-sheet; slice/look studios are full-screen (ADR-0029).
+// Why: workbench shell — preview, 话题/金句 list, 保存到相册. Edit and look are toolbar
+// icons only; crop/taste/trim never sit on this surface (ADR-0030).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -57,7 +57,10 @@ struct ClipListView: View {
         VStack(spacing: 12) {
             stage(result: result, clip: clip)
                 .containerRelativeFrame(.vertical) { height, _ in height * 0.42 }
-            ResultTabBar(document: result.document, slicedWith: result.slicedWith, tab: $tab)
+            ResultTabBar(
+                document: result.document, slicedWith: result.slicedWith, tab: $tab,
+                onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
+            )
             list(result: result, clips: clips, clip: clip, rationaleTap: { showRationale = true })
             actionRow(result: result, clips: clips, clip: clip)
         }
@@ -69,7 +72,10 @@ struct ClipListView: View {
         GeometryReader { proxy in
             let landscape = proxy.size.width > proxy.size.height
             let lists = VStack(spacing: 12) {
-                ResultTabBar(document: result.document, slicedWith: result.slicedWith, tab: $tab)
+                ResultTabBar(
+                    document: result.document, slicedWith: result.slicedWith, tab: $tab,
+                    onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
+                )
                 list(result: result, clips: clips, clip: clip, rationaleTap: nil)
             }
             let side = VStack(alignment: .leading, spacing: 14) {
@@ -107,10 +113,7 @@ struct ClipListView: View {
             preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec,
             captionStyle: session.captionStyle, captionTune: session.captionTune, clipID: clip.id,
             cropFocus: session.cropFocus(for: clip.id), cropZoom: session.cropZoom(for: clip.id),
-            showCropPad: session.framingMode == .phonePortrait,
-            onCropChange: { session.setCropFocus($0, for: clip.id); preview = .loading },
-            onCropZoom: { session.setCropZoom($0, for: clip.id); preview = .loading },
-            onCropReset: { session.clearCropOverride(for: clip.id); preview = .loading }
+            showCropPad: false
         )
         .id(clip.id)
         .transition(.opacity)
@@ -123,7 +126,7 @@ struct ClipListView: View {
         if let clips {
             ClipTable(
                 sourceURL: result.sourceURL, clips: clips, selectedID: clip.id, renders: displayRenders(clips),
-                select: { selectedID = $0; preview = .loading }, showRationale: rationaleTap
+                select: selectClip, showRationale: rationaleTap
             )
             .frame(maxHeight: .infinity)
             .transition(.opacity)
@@ -158,7 +161,7 @@ struct ClipListView: View {
             } label: {
                 saveLabel(for: clip)
             }
-            .buttonStyle(PrimaryButtonStyle(tint: isSavedCurrent(clip) ? savedTint : StudioTheme.accentGradient))
+            .buttonStyle(PrimaryButtonStyle(tint: isSavedCurrent(clip) ? savedTint : saveTint))
             .disabled(isSaving || isExporting(clip) || isSavedCurrent(clip))
             .contentTransition(.symbolEffect(.replace))
             .animation(StudioTheme.motion, value: saved)
@@ -178,13 +181,22 @@ struct ClipListView: View {
             if isSaving {
                 Label("保存中", systemImage: "arrow.down.circle")
             } else {
-                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "arrow.down.to.line")
+                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "square.and.arrow.down")
             }
         }
     }
 
+    private var saveTint: LinearGradient {
+        LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.88)], startPoint: .leading, endPoint: .trailing)
+    }
+
     private var savedTint: LinearGradient {
         LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
+    }
+
+    private func selectClip(_ id: String) {
+        selectedID = id
+        preview = .loading
     }
 
     func renderState(of clip: EDLClip) -> ClipRenderState {

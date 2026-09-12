@@ -16,6 +16,9 @@ struct LookStudioLivePreview: View {
     let framing: FramingMode
     let cropFocus: CGPoint?
     let cropZoom: CGFloat
+    var onCropFocus: ((CGPoint) -> Void)? = nil
+    var onCropZoom: ((CGFloat) -> Void)? = nil
+    var onCropReset: (() -> Void)? = nil
 
     @State private var preview: PreviewState = .loading
     @State private var aspect: CGFloat = 9 / 16
@@ -31,7 +34,10 @@ struct LookStudioLivePreview: View {
             clipID: clip.id,
             cropFocus: cropFocus,
             cropZoom: cropZoom,
-            showCropPad: false
+            showCropPad: framing == .phonePortrait && onCropFocus != nil,
+            onCropChange: onCropFocus,
+            onCropZoom: onCropZoom,
+            onCropReset: onCropReset
         )
         .animation(StudioTheme.motion, value: framing)
         .task(id: rebuildKey) {
