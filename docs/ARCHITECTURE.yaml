@@ -390,18 +390,36 @@ implemented:
       - scripts/live_check.sh
 
 planned:
-  - name: Matrix variants
+  # ---- 1.1 ----
+  - name: Slice quality gate
     status: planned
     tech: []
-    note: multiple renders (durations, caption styles) of approved clips; depends on renderer.
+    note: Close the known prompt failure where transitional lines ("好，咱们看看第一题") survive into segments[]. Two layers, both fail-loud: (1) iterate TopicCompletePrompt to forbid openers/transitions/CTA; (2) a pre-export validator that flags matching cues as suspicious on the rationale sheet for the user to keep or drop — never silently delete (ADR-0005). No new modules until a real caller exists.
   - name: EDL editing in app
     status: planned
     tech: []
-    note: trim / merge clips before rendering; today the EDL is read-only in the UI.
-  - name: Background rendering
+    note: Replace read-only ClipDetailView with three edits before save: drag clip ends to trim, merge two adjacent clips, discard a clip. Persist the edited EDL via ProjectStore (schema_version bump if fields change — see EDL_SCHEMA.md). Re-export only the touched clips; do not re-run ASR/LLM.
+  - name: Domain presets in UI
     status: planned
     tech: []
-    note: keep exports running when the app is backgrounded.
+    note: Surface SlicingStrategy domains already in Core (general + military_news) as a light picker at import or in Settings: podcast / interview / lecture / livestream VOD (+ keep military_news). Choosing one sets domain only; no extra knobs. Record domain in slicedWith / EDL so PipelineReuse reruns when it changes.
+  - name: Project storage and fingerprint hints
+    status: planned
+    tech: []
+    note: On the project list show per-project disk use (source + renders) and, on import hit, a one-line fact that the same video was reopened (ADR-0015 / ADR-0017). Display only — no pipeline change.
+  # ---- 1.2 (keep; do after 1.1) ----
+  - name: Matrix variants
+    status: planned
+    tech: []
+    note: Multiple renders of an approved clip (e.g. 30s / 60s, two caption styles). Depends on renderer and on EDL editing being done first so users approve before forking.
+  - name: Background export only
+    status: planned
+    tech: []
+    note: Keep "Save to Photos" running via BGProcessingTask when backgrounded. ASR and slicing stay foreground-only and stay honest in the UI (ADR-0011). Not full background rendering of the whole pipeline.
+  - name: Batch save selected clips
+    status: planned
+    tech: []
+    note: Multi-select on the workbench table → save/share N clips in one action. No cloud, no account.
 
 requires_new_architecture:
   - name: Multi-tenant backend
