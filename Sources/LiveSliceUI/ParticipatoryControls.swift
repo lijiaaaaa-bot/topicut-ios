@@ -1,5 +1,5 @@
-// Why: workbench controls for Topicut 2.0 — drag+pinch 9:16 framing, live draft trim, merge.
-// Slice / look studios are separate full-screen environments opened from the toolbar (ADR-0029).
+// Why: Topicut 2.0 participatory chrome — 9:16 crop pad (look studio) and the edit half-sheet
+// (large-handle trim, merge, 丢弃, 完成). Workbench itself stays preview/list/save (ADR-0030).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -66,110 +66,96 @@ struct CropFocusPad: View {
     }
 }
 
-/// Live draft trim: sliders rebuild the stage; 应用裁切 writes the EDL.
-struct ClipTrimBar: View {
-    let duration: Double
-    let onDraft: (_ leading: Double, _ trailing: Double) -> Void
-    let onApply: (_ leading: Double, _ trailing: Double) -> Void
-    @State private var leading = 0.0
-    @State private var trailing = 0.0
-
-    private var maxEdge: Double { max(0, (duration - 0.5) / 2) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("头 \(Int(leading))s").font(.caption2).foregroundStyle(StudioTheme.muted).frame(width: 52, alignment: .leading)
-                Slider(value: $leading, in: 0...maxEdge, step: 0.5)
-                    .onChange(of: leading) { _, v in onDraft(v, trailing) }
-            }
-            HStack {
-                Text("尾 \(Int(trailing))s").font(.caption2).foregroundStyle(StudioTheme.muted).frame(width: 52, alignment: .leading)
-                Slider(value: $trailing, in: 0...maxEdge, step: 0.5)
-                    .onChange(of: trailing) { _, v in onDraft(leading, v) }
-            }
-            Button("应用裁切") { onApply(leading, trailing) }
-                .font(.caption.weight(.semibold))
-                .disabled(leading == 0 && trailing == 0)
-        }
-        .padding(12)
-        .background(StudioTheme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .onChange(of: duration) { _, _ in
-            leading = 0
-            trailing = 0
-        }
-    }
-}
-
-struct ClipMergeButton: View {
-    let enabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label("与下一条合并", systemImage: "arrow.triangle.merge")
-                .font(.caption.weight(.semibold))
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.4)
-    }
-}
-
-/// Trim + merge only — presented in a half-sheet so the workbench stays preview/list/save.
-struct ClipEditStack: View {
-    let duration: Double
-    let canMerge: Bool
-    let onDraftTrim: (_ leading: Double, _ trailing: Double) -> Void
-    let onApplyTrim: (_ leading: Double, _ trailing: Double) -> Void
-    let onMerge: () -> Void
-
-    var body: some View {
-        VStack(spacing: 10) {
-            ClipTrimBar(duration: duration, onDraft: onDraftTrim, onApply: onApplyTrim)
-            ClipMergeButton(enabled: canMerge, action: onMerge)
-        }
-    }
-}
-
-/// Half-sheet chrome for head/tail trim + merge. Draft preview stays on the workbench stage.
+/// Half-sheet: filmstrip trim, merge, discard draft, or 完成 to write the EDL.
 struct ClipEditSheet: View {
-    let title: String
     let duration: Double
+    let originStart: Double
+    let sourceURL: URL
     let canMerge: Bool
     let onDraftTrim: (_ leading: Double, _ trailing: Double) -> Void
     let onApplyTrim: (_ leading: Double, _ trailing: Double) -> Void
     let onMerge: () -> Void
     let dismiss: () -> Void
 
+    @State private var draft: TrimDraft
+
+    init(
+        duration: Double,
+        originStart: Double,
+        sourceURL: URL,
+        canMerge: Bool,
+        onDraftTrim: @escaping (_ leading: Double, _ trailing: Double) -> Void,
+        onApplyTrim: @escaping (_ leading: Double, _ trailing: Double) -> Void,
+        onMerge: @escaping () -> Void,
+        dismiss: @escaping () -> Void
+    ) {
+        self.duration = duration
+        self.originStart = originStart
+        self.sourceURL = sourceURL
+        self.canMerge = canMerge
+        self.onDraftTrim = onDraftTrim
+        self.onApplyTrim = onApplyTrim
+        self.onMerge = onMerge
+        self.dismiss = dismiss
+        _draft = State(initialValue: TrimDraft(duration: duration, originStart: originStart))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("裁切这条")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Spacer()
-                Button("完成", action: dismiss)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(StudioTheme.accent)
-            }
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(StudioTheme.muted)
-                .lineLimit(2)
-            Text("拖动即在上方试看；点「应用裁切」才写入。关掉未应用的改动会丢弃。")
-                .font(.caption)
-                .foregroundStyle(StudioTheme.muted)
-            ClipEditStack(
-                duration: duration, canMerge: canMerge,
-                onDraftTrim: onDraftTrim, onApplyTrim: onApplyTrim, onMerge: onMerge
-            )
-            Spacer(minLength: 0)
+        VStack(spacing: 20) {
+            TrimTimeline(draft: $draft, sourceURL: sourceURL, onDraft: onDraftTrim)
+            actionRow
+            completeRow
         }
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(StudioTheme.background)
         .preferredColorScheme(.dark)
+        .onChange(of: duration) { _, new in
+            draft = TrimDraft(duration: new, originStart: originStart)
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 12) {
+            Button(action: onMerge) {
+                Label("与下一条合并", systemImage: "arrow.triangle.merge")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(StudioTheme.raised, in: Capsule())
+            }
+            .disabled(!canMerge)
+            .opacity(canMerge ? 1 : 0.4)
+            Button(action: dismiss) {
+                Label("丢弃", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color(red: 0.38, green: 0.12, blue: 0.14), in: Capsule())
+            }
+        }
+        .font(.body.weight(.semibold))
+        .foregroundStyle(.white)
+        .buttonStyle(.plain)
+    }
+
+    private var completeRow: some View {
+        HStack {
+            Spacer()
+            Button(action: complete) {
+                Image(systemName: "checkmark")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(StudioTheme.accent, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("完成")
+        }
+    }
+
+    private func complete() {
+        if draft.isDirty { onApplyTrim(draft.leading, draft.trailing) }
+        dismiss()
     }
 }

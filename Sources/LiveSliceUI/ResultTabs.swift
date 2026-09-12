@@ -1,7 +1,6 @@
 // Why: the workbench shows two lists from one slicing call — complete topics and short highlights
-// (ADR-0022). The switch is two pills on the line that already carries the token/cost readout, so
-// the screen gains no new row. A project sliced before highlights existed gets one honest panel:
-// what is missing, what re-slicing costs, one button; nothing re-slices by itself.
+// (ADR-0022). The bar is 话题|金句 plus title chips; 重新切片 lives in the overflow, not a toolbar
+// glyph (ADR-0030). Old projects without highlights still get one honest panel and one paid button.
 
 import LiveSliceCore
 import SwiftUI
@@ -26,61 +25,122 @@ enum ResultTab: Hashable {
     }
 }
 
-/// Two pills on the left, the LLM usage readout on the right.
+/// Segmented 话题|金句, clip-title chips, usage, overflow 重新切片.
 struct ResultTabBar: View {
     let document: EDLDocument
     let slicedWith: String?
     @Binding var tab: ResultTab
+    let selectedID: String
+    let onSelect: (String) -> Void
+    let onReslice: () -> Void
+    var sliceTasteStale: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
-            pill(.topics)
-            pill(.highlights)
-            Spacer()
-            if let usage = document.llm {
-                HStack(spacing: 6) {
-                    Text(LLMCost.tokenText(usage))
-                    if let charge = LLMCost.estimate(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt) {
-                        Text("·")
-                        Text(LLMCost.text(charge))
-                    }
-                }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(StudioTheme.muted)
-            }
+            segmented
+            chipStrip
+            usage
+            overflow
         }
         .padding(.horizontal, 4)
         .padding(.top, -4)
     }
 
-    private func pill(_ t: ResultTab) -> some View {
+    private var segmented: some View {
+        HStack(spacing: 0) {
+            segment(.topics)
+            Text("|")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(StudioTheme.muted.opacity(0.45))
+            segment(.highlights)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(StudioTheme.raised, in: Capsule())
+    }
+
+    private func segment(_ t: ResultTab) -> some View {
         let on = tab == t
-        let count = t.clips(in: document)?.count
         return Button {
             withAnimation(StudioTheme.motion) { tab = t }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
+                if on {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 8, weight: .bold))
+                }
                 Text(t.title)
                     .font(.subheadline.weight(on ? .semibold : .medium))
-                if let count {
-                    Text("\(count)")
-                        .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(on ? StudioTheme.accent : StudioTheme.muted)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(StudioTheme.muted)
-                }
             }
             .foregroundStyle(on ? .white : StudioTheme.muted)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(on ? StudioTheme.raised : Color.clear, in: Capsule())
-            .overlay(Capsule().strokeBorder(on ? Color.white.opacity(0.08) : Color.clear))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t.title)
-        .accessibilityValue(pillValue(count))
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityValue(pillValue(t.clips(in: document)?.count))
+    }
+
+    private var chipStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(tab.clips(in: document) ?? [], id: \.id) { clip in
+                    chip(clip)
+                }
+            }
+        }
+    }
+
+    private func chip(_ clip: EDLClip) -> some View {
+        let on = clip.id == selectedID
+        return Button {
+            onSelect(clip.id)
+        } label: {
+            Text(clip.title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(on ? .white : StudioTheme.muted)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(on ? StudioTheme.raised : Color.white.opacity(0.06), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(clip.title)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var usage: some View {
+        if let usage = document.llm {
+            HStack(spacing: 4) {
+                Text(LLMCost.tokenText(usage))
+                if let charge = LLMCost.estimate(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt) {
+                    Text("·")
+                    Text(LLMCost.text(charge))
+                }
+            }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(StudioTheme.muted)
+            .lineLimit(1)
+        }
+    }
+
+    private var overflow: some View {
+        Menu {
+            Button("重新切片", action: onReslice)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(StudioTheme.muted)
+                .frame(width: 32, height: 32)
+                .overlay(alignment: .topTrailing) {
+                    if sliceTasteStale {
+                        Circle().fill(StudioTheme.accent).frame(width: 7, height: 7)
+                    }
+                }
+        }
+        .accessibilityLabel(sliceTasteStale ? "按新偏好重新切片" : "更多")
     }
 }
 

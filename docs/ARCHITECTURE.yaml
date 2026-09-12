@@ -472,7 +472,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench (preview, ResultTabBar, crop on stage, export-on-save); trim/merge via toolbar half-sheet; slice/look studios via toolbar fullScreenCover (ADR-0029); iPad two-column layout
+    purpose: workbench shell (preview, ResultTabBar, list, export-on-save); no crop/taste/trim on the main surface (ADR-0030); iPad two-column layout
     test_exempt: true
     test_exempt_reason: SwiftUI view; session calls covered by SliceSessionTests / RerunsTests
     called_by:
@@ -480,7 +480,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListViewStudios.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench toolbar + slice/look studioCover + clip trim/merge half-sheet (ADR-0029)
+    purpose: workbench toolbar (edit + look) + look/slice studioCover + clip edit half-sheet (ADR-0030)
     test_exempt: true
     test_exempt_reason: SwiftUI chrome; SliceSessionRerunsTests cover resliceFromTaste / describeLook
     called_by:
@@ -496,12 +496,19 @@ implemented:
   - path: Sources/LiveSliceUI/ParticipatoryControls.swift
     status: implemented
     module: LiveSliceUI
-    purpose: CropFocusPad, ClipTrimBar, ClipEditStack, ClipEditSheet — Topicut 2.0 participatory chrome (ADR-0026/0029)
+    purpose: CropFocusPad (look-studio phone-portrait pad) + ClipEditSheet (large-handle trim/merge/丢弃/完成, ADR-0030)
     test_exempt: true
     test_exempt_reason: SwiftUI; CropFocusStoreTests / SlicingTasteTests / EDLClipTrimTests cover the data path
     called_by:
       - Sources/LiveSliceUI/ClipListViewStudios.swift
       - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+      - Sources/LiveSliceUI/LookStudioLivePreview.swift
+  - path: Sources/LiveSliceUI/TrimTimeline.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: TrimDraft clamp + filmstrip timeline with ≥44pt handles for the edit half-sheet (ADR-0030)
+    called_by:
+      - Sources/LiveSliceUI/ParticipatoryControls.swift
   - path: Sources/LiveSliceUI/CropFocusStore.swift
     status: implemented
     module: LiveSliceUI
@@ -512,7 +519,7 @@ implemented:
   - path: Sources/LiveSliceUI/ResultTabs.swift
     status: implemented
     module: LiveSliceUI
-    purpose: ResultTab (topics | highlights) + ResultTabBar (two pills sharing the line with the token/cost readout) + StaleHighlightsPanel (one line, last call's cost, one explicit 重新切片 button) for documents without highlights (ADR-0022)
+    purpose: ResultTab (topics | highlights) + ResultTabBar (话题|金句 + title chips + usage + overflow 重新切片) + StaleHighlightsPanel for documents without highlights (ADR-0022/0030)
     test_exempt: true
     test_exempt_reason: SwiftUI views; the reslice they trigger and the nil-vs-empty highlights they branch on are covered by SliceSessionReuseTests and EDLDocumentTests
     called_by:
@@ -520,7 +527,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: PreviewState, ClipStage (poster until the preview is built, then the live player), ClipTable (one row per clip - first frame, number, full title, duration, export mark; selected row again opens rationale where the rationale is not already on screen), ClipPoster, TimeText
+    purpose: PreviewState, ClipStage (poster then live player; optional crop pad used by look studio only), ClipTable (number, frame, title, clock duration, ⋮ 依据), ClipPoster, TimeText
     test_exempt: true
     test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests, TimeText formatting by TimeTextTests
     called_by:
@@ -540,6 +547,7 @@ implemented:
     purpose: display strings for framing / caption style / position and the 保存到相册 button title; ExportLookSection (画幅 | 字幕)
     called_by:
       - Sources/LiveSliceUI/ExportLookStudio.swift
+      - Sources/LiveSliceUI/ExportLookStudioParts.swift
       - Sources/LiveSliceUI/ClipListView.swift
   - path: Sources/LiveSliceUI/CaptionSample.swift
     status: implemented
@@ -559,25 +567,26 @@ implemented:
   - path: Sources/LiveSliceUI/StudioChoice.swift
     status: implemented
     module: LiveSliceUI
-    purpose: large choice cards + horizontal chip rows shared by slice/look studios (ADR-0029)
+    purpose: large choice cards, compact 3-up tiles, and chip rows shared by slice/look studios (ADR-0029/0030)
     test_exempt: true
     test_exempt_reason: SwiftUI layout helpers; studios covered by session/look tests
     called_by:
       - Sources/LiveSliceUI/SliceStudio.swift
       - Sources/LiveSliceUI/ExportLookStudio.swift
+      - Sources/LiveSliceUI/ExportLookStudioParts.swift
   - path: Sources/LiveSliceUI/SliceStudio.swift
     status: implemented
     module: LiveSliceUI
-    purpose: phone-first 切片工作室 after ASR (hero count, preset cards, chip fine-tune, sticky CTA); workbench toolbar re-opens it (ADR-0028/0029)
+    purpose: phone-first 切片工作室 after ASR (3 density cards, 亮点 chips, sticky 开始切片); workbench overflow re-opens it (ADR-0028/0030)
     test_exempt: true
     test_exempt_reason: SwiftUI view; SliceSessionTests cover awaitingSlice/confirmSlice; SliceTastePresetTests cover tags
     called_by:
       - Sources/LiveSliceUI/HomeView.swift
-      - Sources/LiveSliceUI/ParticipatoryControls.swift
+      - Sources/LiveSliceUI/ClipListViewStudios.swift
   - path: Sources/LiveSliceUI/LookStudioLivePreview.swift
     status: implemented
     module: LiveSliceUI
-    purpose: ClipRenderer.preview of the selected clip inside 成片工作室; rebuilds on look/framing/crop (same path as workbench)
+    purpose: ClipRenderer.preview of the selected clip inside 成片工作室; phone-portrait crop pad lives here, not on the workbench (ADR-0030)
     test_exempt: true
     test_exempt_reason: SwiftUI wrapper; ClipRendererTests + ClipListViewPreview cover the preview path
     called_by:
@@ -585,7 +594,7 @@ implemented:
   - path: Sources/LiveSliceUI/ExportLookStudio.swift
     status: implemented
     module: LiveSliceUI
-    purpose: phone-first 成片工作室 (live selected-clip preview, preset cards, tune/describe panes); workbench toolbar (ADR-0027/0029)
+    purpose: phone-first 成片工作室 — presets + framing chips first; tune/NL describe under 高级 (ADR-0027/0030)
     test_exempt: true
     test_exempt_reason: SwiftUI studio; LookDescribeParser and CaptionTune covered by unit tests
     called_by:
@@ -593,7 +602,7 @@ implemented:
   - path: Sources/LiveSliceUI/ExportLookStudioParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: colour chips for ExportLookStudio tune pane
+    purpose: colour chips plus LookTunePane / LookDescribePane for ExportLookStudio 高级
     test_exempt: true
     test_exempt_reason: SwiftUI helpers for ExportLookStudio
     called_by:
@@ -660,7 +669,7 @@ planned:
   - name: EDL editing in app
     status: planned
     tech: []
-    note: "Head/tail trim + adjacent merge are implemented (EDLClipTrim / EDLClipMerge + workbench). Richer multi-select merge / split remains planned (ADR-0026)."
+    note: "Head/tail trim + adjacent merge are implemented (EDLClipTrim / EDLClipMerge + edit half-sheet). Richer multi-select merge / split remains planned (ADR-0026)."
   - name: Slice and highlight taste controls
     status: planned
     tech: []
@@ -668,7 +677,7 @@ planned:
   - name: Interactive crop framing
     status: planned
     tech: []
-    note: "Drag focus + pinch zoom on phonePortrait are implemented (CropFocusPad, CropOverride zoom, live preview); freehand polygon crop remains planned (ADR-0026)."
+    note: "Drag focus + pinch zoom on phonePortrait are implemented in 成片工作室 (CropFocusPad, CropOverride zoom, live preview); freehand polygon crop remains planned (ADR-0026)."
   - name: Background rendering
     status: planned
     tech: []

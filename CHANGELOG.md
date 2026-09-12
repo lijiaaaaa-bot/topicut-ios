@@ -6,8 +6,14 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
+- Workbench shell matches the approved 2.0 mockups (ADR-0030): main surface is preview / 话题·金句 /
+  list / 保存到相册; toolbar is edit + look only. Phone-portrait crop leaves the stage (drag lives
+  in 成片工作室). Edit is a medium/large sheet with ≥44pt `TrimTimeline` handles; **完成** writes
+  the EDL, **丢弃** drops the draft. 切片工作室 is three density cards + 亮点 chips + sticky
+  **开始切片** (workbench re-opens it from the tab overflow). 成片工作室 is preset + framing first;
+  knobs and NL describe sit under **高级**.
 - Workbench trim/merge move into a toolbar half-sheet (`ClipEditSheet`); main stack is preview /
-  list / save only. Closing without 应用裁切 discards the draft.
+  list / save only. Closing without applying the draft discards it.
 - 成片工作室 preview uses the selected clip’s live `ClipRenderer.preview` (same path as the workbench),
   not a black card with `CaptionSample`.
 

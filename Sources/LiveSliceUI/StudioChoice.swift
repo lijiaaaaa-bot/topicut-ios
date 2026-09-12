@@ -43,6 +43,53 @@ struct StudioChoiceCard: View {
     }
 }
 
+/// Compact 3-up card for 切片工作室 density (title + note + tag).
+struct StudioChoiceTile: View {
+    let title: String
+    let note: String
+    let tag: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(StudioTheme.accent)
+                    }
+                }
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(StudioTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(tag)
+                    .font(.caption2)
+                    .foregroundStyle(StudioTheme.muted.opacity(0.85))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+            .background(
+                selected ? StudioTheme.accent.opacity(0.14) : StudioTheme.raised,
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(selected ? StudioTheme.accent.opacity(0.85) : Color.white.opacity(0.06), lineWidth: selected ? 1.5 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 struct StudioChipRow<Value: Hashable>: View {
     let values: [Value]
     @Binding var selection: Value

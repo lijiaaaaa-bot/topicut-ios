@@ -16,7 +16,7 @@ enum ExportLookText {
     static func framingNote(_ mode: FramingMode) -> String {
         switch mode {
         case .sourceAspect: "保持素材自己的宽高比，最长边不超过 1920"
-        case .phonePortrait: "裁成 9:16；默认同人脸，可在预览上拖动改取景，点「跟脸」恢复自动"
+        case .phonePortrait: "裁成 9:16；默认同人脸，可在成片样式预览上拖动改取景，点「跟脸」恢复自动"
         case .portraitFit: "9:16 画布，完整画面居中，两侧或上下留黑边"
         }
     }

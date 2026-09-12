@@ -31,4 +31,10 @@ struct SlicingTasteTests {
         #expect(SlicingTaste.standard.keyFragment == "standard+standard")
         #expect(SlicingTaste(topicDensity: .more, highlightSpan: .roomy).keyFragment == "more+roomy")
     }
+
+    @Test func studioCopyIsUniquePerCase() {
+        #expect(Set(TopicDensity.allCases.map(\.studioTag)).count == TopicDensity.allCases.count)
+        #expect(Set(HighlightSpan.allCases.map(\.studioChip)).count == HighlightSpan.allCases.count)
+        #expect(HighlightSpan.standard.studioChip == "30秒")
+    }
 }
