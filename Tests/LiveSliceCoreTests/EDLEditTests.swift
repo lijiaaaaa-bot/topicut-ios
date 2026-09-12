@@ -55,7 +55,8 @@ struct EDLEditTests {
         let merged = try EDLEdit.merge(first, with: second)
         #expect(merged.id == first.id)
         #expect(merged.title == first.title)
-        #expect(merged.segments.map { ($0.startSec, $0.endSec) } == [(1, 13), (16, 22), (25, 40)])
+        #expect(merged.segments.map(\.startSec) == [1, 16, 25])
+        #expect(merged.segments.map(\.endSec) == [13, 22, 40])
         #expect(merged.removedSegments.contains { $0.startSec == 22 && $0.endSec == 25 })
         #expect(merged.mode == EDLClip.modeCompressedConcat)
     }
@@ -64,8 +65,10 @@ struct EDLEditTests {
         let first = try TestSupport.clip()
         let second = try trailingClip(start: 22, end: 40)
         let merged = try EDLEdit.merge(first, with: second)
-        #expect(merged.segments.map { ($0.startSec, $0.endSec) } == [(1, 13), (16, 40)])
-        #expect(merged.removedSegments.map { ($0.startSec, $0.endSec) } == [(13, 16)])
+        #expect(merged.segments.map(\.startSec) == [1, 16])
+        #expect(merged.segments.map(\.endSec) == [13, 40])
+        #expect(merged.removedSegments.map(\.startSec) == [13])
+        #expect(merged.removedSegments.map(\.endSec) == [16])
     }
 
     @Test func discardRemovesTheClipAndSelectsANeighbor() throws {
