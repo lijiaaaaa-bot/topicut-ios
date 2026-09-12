@@ -10,12 +10,14 @@ struct SliceSessionEditingTests {
             transcribeError: SessionTestError.mustNotRun, sliceError: SessionTestError.mustNotRun
         ), key: nil)
         let document = try SessionFixtures.document()
+        let sliceKey = PipelineReuse.sliceKey(model: harness.settings.model, baseURL: harness.settings.baseURL)
         let record = try harness.savedProject(
             srt: try SRTWriter.serialize(SessionFixtures.cues), document: document,
-            slicedWith: "test-model|https://example.invalid"
+            slicedWith: sliceKey
         )
         let file = try Self.writeExport(harness: harness, projectID: record.id, clipID: "f_01_c_01")
         await harness.session.open(record)
+        #expect(harness.session.stage == .ready)
         try Self.expectDone(harness.session.renders["f_01_c_01"], matching: file)
 
         let trimmed = try EDLEdit.trim(
@@ -25,7 +27,7 @@ struct SliceSessionEditingTests {
         #expect(harness.session.stage == .ready)
         #expect(harness.session.result?.document.clips.first?.startSec == 5)
         #expect(harness.session.result?.document.clips.first?.endSec == 20)
-        #expect(harness.session.result?.slicedWith == "test-model|https://example.invalid")
+        #expect(harness.session.result?.slicedWith == sliceKey)
         #expect(harness.session.renders["f_01_c_01"] == .idle)
         #expect(!FileManager.default.fileExists(atPath: file.path))
         #expect(try harness.store.load(id: record.id).document?.clips.first?.startSec == 5)
