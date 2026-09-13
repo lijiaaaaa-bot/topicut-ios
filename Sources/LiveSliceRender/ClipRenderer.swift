@@ -106,11 +106,17 @@ public struct ClipRenderer: Sendable {
         sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]? = nil, outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> RenderResult {
-        try await SourceMediaGate.shared.exclusive {
-            try await self.renderExclusive(
+        await SourceMediaGate.shared.acquire()
+        do {
+            let result = try await renderExclusive(
                 sourceURL: sourceURL, clip: clip, cues: cues, words: words,
                 outputURL: outputURL, progress: progress
             )
+            await SourceMediaGate.shared.release()
+            return result
+        } catch {
+            await SourceMediaGate.shared.release()
+            throw error
         }
     }
 

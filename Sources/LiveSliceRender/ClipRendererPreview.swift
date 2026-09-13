@@ -14,8 +14,16 @@ extension ClipRenderer {
     public func preview(
         sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]? = nil
     ) async throws -> ClipPreview {
-        try await SourceMediaGate.shared.exclusive {
-            try await self.previewExclusive(sourceURL: sourceURL, clip: clip, cues: cues, words: words)
+        await SourceMediaGate.shared.acquire()
+        do {
+            let built = try await previewExclusive(
+                sourceURL: sourceURL, clip: clip, cues: cues, words: words
+            )
+            await SourceMediaGate.shared.release()
+            return built
+        } catch {
+            await SourceMediaGate.shared.release()
+            throw error
         }
     }
 

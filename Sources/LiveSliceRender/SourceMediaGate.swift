@@ -10,6 +10,26 @@ public actor SourceMediaGate {
 
     public init() {}
 
+    /// Token lock for callers whose work is not `@Sendable` (MainActor preview). Pair with `release`.
+    public func acquire() async {
+        if !busy {
+            busy = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    public func release() {
+        if waiters.isEmpty {
+            busy = false
+            return
+        }
+        waiters.removeFirst().resume()
+    }
+
+    /// Only for `@Sendable` work. Isolated closures must `acquire` / `release` around local work.
     public func exclusive<T: Sendable>(
         _ work: @Sendable () async throws -> T
     ) async throws -> T {
@@ -22,23 +42,5 @@ public actor SourceMediaGate {
             release()
             throw error
         }
-    }
-
-    private func acquire() async {
-        if !busy {
-            busy = true
-            return
-        }
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-        }
-    }
-
-    private func release() {
-        if waiters.isEmpty {
-            busy = false
-            return
-        }
-        waiters.removeFirst().resume()
     }
 }

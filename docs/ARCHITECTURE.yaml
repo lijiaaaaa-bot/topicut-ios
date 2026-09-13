@@ -219,7 +219,7 @@ implemented:
   - path: Sources/LiveSliceRender/SourceMediaGate.swift
     status: implemented
     module: LiveSliceRender
-    purpose: actor mutex so ClipRenderer.preview and ClipRenderer.render never overlap on one source asset (AVError.operationInterrupted / -11847)
+    purpose: actor mutex so ClipRenderer.preview and ClipRenderer.render never overlap on one source asset (AVError.operationInterrupted / -11847); isolated callers use acquire/release so a MainActor preview closure is not sent into exclusive
     called_by:
       - Sources/LiveSliceRender/ClipRenderer.swift
       - Sources/LiveSliceRender/ClipRendererPreview.swift
@@ -372,7 +372,7 @@ implemented:
   - path: Sources/LiveSliceUI/RenderInterrupt.swift
     status: implemented
     module: LiveSliceUI
-    purpose: map AVFoundation export interrupt (-11847) to idle when the Task was cancelled, else one automatic retry, else a Chinese failure string — never the raw NSError dump
+    purpose: map AVFoundation export interrupt (-11847) to idle when the Task was cancelled, else one automatic retry (`alreadyRetried` then Chinese fail only); `run` is MainActor so SliceSession does not send a non-Sendable closure
     called_by:
       - Sources/LiveSliceUI/SliceSession.swift
   - path: Sources/LiveSliceUI/SliceSession.swift

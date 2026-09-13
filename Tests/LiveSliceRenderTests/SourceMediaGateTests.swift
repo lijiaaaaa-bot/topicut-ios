@@ -21,6 +21,25 @@ struct SourceMediaGateTests {
         #expect(await occupancy.peak == 1)
         #expect(await occupancy.entries == 4)
     }
+
+    @Test func acquireReleaseSerializesWithoutSendingAClosure() async throws {
+        let gate = SourceMediaGate()
+        let occupancy = Occupancy()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<3 {
+                group.addTask {
+                    await gate.acquire()
+                    await occupancy.enter()
+                    try await Task.sleep(for: .milliseconds(10))
+                    await occupancy.leave()
+                    await gate.release()
+                }
+            }
+            try await group.waitForAll()
+        }
+        #expect(await occupancy.peak == 1)
+        #expect(await occupancy.entries == 3)
+    }
 }
 
 private actor Occupancy {

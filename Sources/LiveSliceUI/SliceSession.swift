@@ -192,13 +192,16 @@ public final class SliceSession {
         } catch is CancellationError {
             renders[clip.id] = .idle
         } catch {
+            // `run` already spent the single automatic retry; do not map -11847 to `.retryOnce` again.
             let recovery: RenderExportRecovery = RenderInterrupt.recovery(
-                for: error, taskCancelled: Task.isCancelled
+                for: error, taskCancelled: Task.isCancelled, alreadyRetried: true
             )
             switch recovery {
             case .idle:
                 renders[clip.id] = .idle
-            case .retryOnce, .fail:
+            case .fail(let message):
+                renders[clip.id] = .failed(message)
+            case .retryOnce:
                 renders[clip.id] = .failed(RenderInterrupt.failMessage(error))
             }
         }

@@ -19,10 +19,16 @@ public enum RenderInterrupt {
         return ns.domain == avFoundationDomain && ns.code == operationInterruptedCode
     }
 
-    /// Cancelled task (or `CancellationError`) → idle. Transient -11847 → one retry. Else fail.
-    public static func recovery(for error: Error, taskCancelled: Bool) -> RenderExportRecovery {
+    /// Cancelled task (or `CancellationError`) → idle. Transient -11847 → one retry unless
+    /// `alreadyRetried` (then Chinese fail — no second automatic retry).
+    public static func recovery(
+        for error: Error, taskCancelled: Bool, alreadyRetried: Bool = false
+    ) -> RenderExportRecovery {
         if error is CancellationError || taskCancelled { return .idle }
-        if isOperationInterrupted(error) { return .retryOnce }
+        if isOperationInterrupted(error) {
+            if alreadyRetried { return .fail(interruptedMessage) }
+            return .retryOnce
+        }
         return .fail(ErrorText.describe(error))
     }
 
@@ -32,7 +38,9 @@ public enum RenderInterrupt {
     }
 
     /// First attempt; on -11847 without cancel, run `work` once more; cancelled → `CancellationError`.
-    public static func run<T: Sendable>(_ work: () async throws -> T) async throws -> T {
+    /// MainActor so `SliceSession.render` can pass `invokeRender` without sending a non-Sendable closure.
+    @MainActor
+    public static func run<T: Sendable>(_ work: @MainActor () async throws -> T) async throws -> T {
         do {
             return try await work()
         } catch {
@@ -40,8 +48,22 @@ public enum RenderInterrupt {
             case .idle:
                 throw CancellationError()
             case .retryOnce:
-                return try await work()
+                return try await retryOnce(work)
             case .fail:
+                throw error
+            }
+        }
+    }
+
+    @MainActor
+    private static func retryOnce<T: Sendable>(_ work: @MainActor () async throws -> T) async throws -> T {
+        do {
+            return try await work()
+        } catch {
+            switch recovery(for: error, taskCancelled: Task.isCancelled, alreadyRetried: true) {
+            case .idle:
+                throw CancellationError()
+            case .retryOnce, .fail:
                 throw error
             }
         }
