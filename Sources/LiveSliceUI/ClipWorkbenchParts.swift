@@ -80,6 +80,8 @@ struct ClipStage: View {
                     onComplete: { holdArmed = false; onHold?() },
                     onCancel: { holdArmed = false }
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
                 .accessibilityHidden(true)
             }
         }

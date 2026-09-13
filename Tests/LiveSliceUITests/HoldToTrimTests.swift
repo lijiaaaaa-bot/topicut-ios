@@ -13,4 +13,12 @@ struct HoldToTrimTests {
         #expect(HoldToTrim.hint == "长按画面可裁剪")
         #expect(HoldToTrim.access == "裁切与合并")
     }
+
+    @Test func sensorMustFillTheStageOrTouchesMiss() {
+        #expect(HoldToTrim.sensorFillsStage)
+    }
+
+    @Test func holdPresentsEditSheetNotRationale() {
+        #expect(HoldToTrim.opensEditSheet)
+    }
 }
