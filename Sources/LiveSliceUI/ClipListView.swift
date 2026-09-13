@@ -111,23 +111,24 @@ struct ClipListView: View {
     }
 
     private func stage(result: SessionResult, clip: EDLClip) -> some View {
-        ClipStage(
-            preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec,
-            captionStyle: session.captionStyle, captionTune: session.captionTune, clipID: clip.id,
-            cropFocus: session.cropFocus(for: clip.id), cropZoom: session.cropZoom(for: clip.id),
-            showCropPad: false
-        )
-        .id(clip.id)
-        .transition(.opacity)
-        .frame(maxWidth: .infinity)
-        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.45)
-                .onEnded { _ in openClipEdit = true }
-        )
-        .workbenchEditSource(namespace: editMorph)
-        .accessibilityElement(children: .contain)
-        .accessibilityAction(named: Text("裁切与合并")) { openClipEdit = true }
+        VStack(spacing: 6) {
+            ClipStage(
+                preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec,
+                captionStyle: session.captionStyle, captionTune: session.captionTune, clipID: clip.id,
+                cropFocus: session.cropFocus(for: clip.id), cropZoom: session.cropZoom(for: clip.id),
+                showCropPad: false, onHold: { openClipEdit = true }
+            )
+            .id(clip.id)
+            .transition(.opacity)
+            .frame(maxWidth: .infinity)
+            .workbenchEditSource(namespace: editMorph)
+            .accessibilityElement(children: .contain)
+            .accessibilityAction(named: Text(HoldToTrim.access)) { openClipEdit = true }
+            Text(HoldToTrim.hint)
+                .font(.caption)
+                .foregroundStyle(StudioTheme.muted)
+                .frame(maxWidth: .infinity)
+        }
     }
 
     /// Topic/highlight table, or the re-slice offer when highlights are absent.

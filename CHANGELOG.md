@@ -6,10 +6,11 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
-- Workbench trailing toolbar is one circular system-glass 成片样式 button. Long-press on the
-  preview opens the EDL edit half-sheet (zoom-morph from the stage; trim filmstrip + merge /
-  丢弃 / 完成). Scissors left the chrome — it added decision cost. Phone clip list is vertical
-  numbered title rows; the save bar uses the photo glyph and a green rounded rect (ADR-0031).
+- Workbench trailing toolbar is one circular system-glass 成片样式 button. Holding the preview
+  arms a 裁剪 capsule (~0.2s) then opens the EDL edit half-sheet (~0.48s); a quiet
+  `长按画面可裁剪` line sits under the stage. The hold overlay is a real hit target so AVKit
+  cannot swallow the gesture; a short tap still play/pauses. Scissors left the chrome. Phone
+  clip list is vertical numbered title rows (ADR-0031).
 - `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption. Tabs (`话题` / `金句`)
   keep intrinsic width (`fixedSize` + layoutPriority); the fee shrinks or wraps underneath so it
   cannot crush the labels to empty pills. Tokens always render when `document.llm` exists.

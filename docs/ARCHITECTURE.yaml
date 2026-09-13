@@ -432,6 +432,14 @@ implemented:
     test_exempt_reason: AVKit playback view; needs a display and a decoder. The composition and subtitle windows it plays are covered by ClipRendererTests.previewPlaysTheCutCompositionWithoutWritingAFile
     called_by:
       - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+  - path: Sources/LiveSliceUI/HoldToTrim.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: hold-to-trim timings, 裁剪 chrome, quiet 长按画面可裁剪 hint, and the iOS hit overlay that owns tap/hold over VideoPlayer
+    called_by:
+      - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+      - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ClipPlayerView.swift
   - path: Sources/LiveSliceUI/LiveDependencies.swift
     status: implemented
     module: LiveSliceUI
@@ -484,7 +492,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListViewStudios.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench toolbar (glass 成片样式) + long-press stage zoom-morphs into edit half-sheet + look/slice studioCover (ADR-0030/0031)
+    purpose: workbench toolbar (glass 成片样式) + hold-to-trim overlay on the stage + look/slice studioCover (ADR-0030/0031)
     test_exempt: true
     test_exempt_reason: SwiftUI chrome; SliceSessionRerunsTests cover resliceFromTaste / describeLook
     called_by:
@@ -531,7 +539,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: PreviewState, ClipStage (poster then live player; optional crop pad used by look studio only), ClipPoster
+    purpose: PreviewState, ClipStage (poster then live player; workbench long-press hold-to-trim overlay; crop pad used by look studio only), ClipPoster
     test_exempt: true
     test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests
     called_by:

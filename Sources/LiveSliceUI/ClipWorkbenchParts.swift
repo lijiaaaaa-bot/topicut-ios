@@ -31,14 +31,22 @@ struct ClipStage: View {
     var onCropChange: ((CGPoint) -> Void)? = nil
     var onCropZoom: ((CGFloat) -> Void)? = nil
     var onCropReset: (() -> Void)? = nil
+    /// Workbench only: long-press opens EDL edit. Look studio leaves this nil.
+    var onHold: (() -> Void)? = nil
+    @State private var holdArmed = false
+    @State private var holdPulse = 0
+    @State private var playback = PlaybackControl()
 
     var body: some View {
         ZStack {
             Color.black
             switch preview {
             case .ready(let preview):
-                ClipPlayerView(preview: preview, style: captionStyle, tune: captionTune, clipID: clipID)
-                    .transition(.opacity)
+                ClipPlayerView(
+                    preview: preview, style: captionStyle, tune: captionTune, clipID: clipID,
+                    playback: onHold == nil ? nil : playback
+                )
+                .transition(.opacity)
             case .loading:
                 poster(dim: 0.45)
             case .failed(let message):
@@ -64,11 +72,22 @@ struct ClipStage: View {
                     onReset: { onCropReset?() }
                 )
             }
+            if onHold != nil, !showCropPad {
+                HoldToTrimChrome(armed: holdArmed)
+                HoldToTrimSensor(
+                    onTap: { playback.toggle() },
+                    onArmed: { holdArmed = true; holdPulse += 1 },
+                    onComplete: { holdArmed = false; onHold?() },
+                    onCancel: { holdArmed = false }
+                )
+                .accessibilityHidden(true)
+            }
         }
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
         .animation(StudioTheme.motion, value: stateKey)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: holdPulse)
     }
 
     private func poster(dim: Double) -> some View {
