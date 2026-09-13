@@ -28,6 +28,11 @@ EDL `schema_version` changes are listed under their own heading in each release.
   not a black card with `CaptionSample`.
 
 ### Fixed
+- Save/export treats `AVError.operationInterrupted` (-11847) as cancel → idle when the Task was
+  cancelled; otherwise one automatic retry; still failing uses `导出被中断，请再试一次。` instead of
+  the raw AVFoundation dump. `SourceMediaGate` serializes preview composition and export on the
+  same source. Opening the long-press trim sheet does not tear down preview while that clip is
+  `.rendering`.
 - `LLMCost` reads only the baseURL segment of `slicedWith` (`model|baseURL|taste`), so a taste
   suffix no longer drops the DeepSeek ¥ estimate. ISO8601 timestamps with fractional seconds still
   parse.

@@ -199,6 +199,12 @@ struct ClipListView: View {
 
     private func selectClip(_ id: String) {
         selectedID = id
+        reloadPreviewUnlessExporting(id)
+    }
+
+    /// Opening the trim sheet or changing look must not tear down a player while export owns the asset.
+    func reloadPreviewUnlessExporting(_ clipID: String) {
+        if session.isRendering(clipID) { return }
         preview = .loading
     }
 
@@ -212,8 +218,7 @@ struct ClipListView: View {
     }
 
     private func isExporting(_ clip: EDLClip) -> Bool {
-        if case .rendering = renderState(of: clip) { return true }
-        return false
+        session.isRendering(clip.id)
     }
 
     private func isSavedCurrent(_ clip: EDLClip) -> Bool {

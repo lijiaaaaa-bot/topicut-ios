@@ -12,12 +12,12 @@ extension ClipListView {
         result: SessionResult, clip: EDLClip, @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .onChange(of: tab) { _, _ in selectedID = nil; preview = .loading }
-            .onChange(of: session.framingMode) { _, _ in preview = .loading }
+            .onChange(of: tab) { _, _ in selectedID = nil; reloadPreviewUnlessExporting(clip.id) }
+            .onChange(of: session.framingMode) { _, _ in reloadPreviewUnlessExporting(clip.id) }
             .onChange(of: openClipEdit) { _, open in
                 if !open {
                     session.clearDraftTrim()
-                    preview = .loading
+                    reloadPreviewUnlessExporting(clip.id)
                 }
             }
             .padding(.horizontal, isWide ? 24 : 16)
@@ -103,16 +103,16 @@ extension ClipListView {
             canMerge: canMerge,
             onDraftTrim: { leading, trailing in
                 session.setDraftTrim(clipID: clip.id, leading: leading, trailing: trailing)
-                preview = .loading
+                reloadPreviewUnlessExporting(clip.id)
             },
             onApplyTrim: { leading, trailing in
                 session.trimClip(id: clip.id, leading: leading, trailing: trailing)
-                preview = .loading
+                reloadPreviewUnlessExporting(clip.id)
             },
             onMerge: {
                 session.mergeWithNext(id: clip.id)
                 openClipEdit = false
-                preview = .loading
+                reloadPreviewUnlessExporting(clip.id)
             },
             dismiss: { openClipEdit = false }
         )

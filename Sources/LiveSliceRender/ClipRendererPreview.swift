@@ -14,6 +14,15 @@ extension ClipRenderer {
     public func preview(
         sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]? = nil
     ) async throws -> ClipPreview {
+        try await SourceMediaGate.shared.exclusive {
+            try await self.previewExclusive(sourceURL: sourceURL, clip: clip, cues: cues, words: words)
+        }
+    }
+
+    @MainActor
+    private func previewExclusive(
+        sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]?
+    ) async throws -> ClipPreview {
         let timeline = try ClipTimeline(clip: clip)
         guard timeline.totalDuration > 0 else { throw ClipRendererError.emptyTimeline(clipID: clip.id) }
         let source = try await SourceInfo.load(url: sourceURL)

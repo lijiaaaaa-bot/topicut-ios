@@ -170,8 +170,14 @@ public final class SliceSession {
         "\(clip.id)\(style.exportSuffix)\(tune.exportSuffix)\(framing.exportSuffix).mp4"
     }
 
+    public func isRendering(_ clipID: String) -> Bool {
+        if case .rendering = renders[clipID] { return true }
+        return false
+    }
+
     /// Renders one clip of the current result into the project's export directory. Task
-    /// cancellation returns the clip to `.idle`; it is not a failure.
+    /// cancellation (including interrupted export while cancelled) returns `.idle`. A lone
+    /// `AVError.operationInterrupted` retries once, then fails in Chinese.
     public func render(clip: EDLClip) async {
         guard let result else {
             renders[clip.id] = .failed("no slicing result to render")
@@ -179,28 +185,44 @@ public final class SliceSession {
         }
         renders[clip.id] = .rendering(0)
         do {
-            let directory = outputDirectory.appending(path: result.projectID)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let style = settings.captionStyle
-            let position = settings.captionPosition
-            let tune = settings.captionTune
-            let framing = settings.framingMode
-            let cropMap = try store.loadCropFocus(of: result.projectID)
-            let cropFocus = cropMap.focus(for: clip.id)
-            let cropZoom = cropMap.zoom(for: clip.id)
-            let output = directory.appending(path: Self.exportName(clip: clip, style: style, position: position, tune: tune, framing: framing))
-            let url = try await dependencies.render(
-                result.sourceURL, clip, result.cues, result.words, style, position, tune, framing, cropFocus, cropZoom, output
-            ) { [weak self] value in
-                Task { @MainActor in
-                    if case .rendering = self?.renders[clip.id] { self?.renders[clip.id] = .rendering(value) }
-                }
+            let url = try await RenderInterrupt.run {
+                try await self.invokeRender(clip: clip, result: result)
             }
             renders[clip.id] = .done(url)
         } catch is CancellationError {
             renders[clip.id] = .idle
         } catch {
-            renders[clip.id] = .failed(ErrorText.describe(error))
+            let recovery: RenderExportRecovery = RenderInterrupt.recovery(
+                for: error, taskCancelled: Task.isCancelled
+            )
+            switch recovery {
+            case .idle:
+                renders[clip.id] = .idle
+            case .retryOnce, .fail:
+                renders[clip.id] = .failed(RenderInterrupt.failMessage(error))
+            }
+        }
+    }
+
+    private func invokeRender(clip: EDLClip, result: SessionResult) async throws -> URL {
+        let directory = outputDirectory.appending(path: result.projectID)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let style = settings.captionStyle
+        let position = settings.captionPosition
+        let tune = settings.captionTune
+        let framing = settings.framingMode
+        let cropMap = try store.loadCropFocus(of: result.projectID)
+        let cropFocus = cropMap.focus(for: clip.id)
+        let cropZoom = cropMap.zoom(for: clip.id)
+        let output = directory.appending(
+            path: Self.exportName(clip: clip, style: style, position: position, tune: tune, framing: framing)
+        )
+        return try await dependencies.render(
+            result.sourceURL, clip, result.cues, result.words, style, position, tune, framing, cropFocus, cropZoom, output
+        ) { [weak self] value in
+            Task { @MainActor in
+                if case .rendering = self?.renders[clip.id] { self?.renders[clip.id] = .rendering(value) }
+            }
         }
     }
 

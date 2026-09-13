@@ -101,8 +101,21 @@ public struct ClipRenderer: Sendable {
 
     /// Renders `clip` from `sourceURL` into `outputURL` (overwritten). `progress` receives 0…1.
     /// `words` are the transcript's timed tokens; required only by `.highlightWord`.
+    /// Waits behind `SourceMediaGate` so a live preview cannot interrupt the export session.
     public func render(
         sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]? = nil, outputURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> RenderResult {
+        try await SourceMediaGate.shared.exclusive {
+            try await self.renderExclusive(
+                sourceURL: sourceURL, clip: clip, cues: cues, words: words,
+                outputURL: outputURL, progress: progress
+            )
+        }
+    }
+
+    private func renderExclusive(
+        sourceURL: URL, clip: EDLClip, cues: [SRTCue], words: [TimedToken]?, outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> RenderResult {
         let timeline = try ClipTimeline(clip: clip)
