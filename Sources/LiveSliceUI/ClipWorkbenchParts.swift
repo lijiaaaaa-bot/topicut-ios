@@ -46,6 +46,7 @@ struct ClipStage: View {
                     preview: preview, style: captionStyle, tune: captionTune, clipID: clipID,
                     playback: onHold == nil ? nil : playback
                 )
+                .allowsHitTesting(onHold == nil)
                 .transition(.opacity)
             case .loading:
                 poster(dim: 0.45)
@@ -80,9 +81,13 @@ struct ClipStage: View {
                     onComplete: { holdArmed = false; onHold?() },
                     onCancel: { holdArmed = false }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
                 .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if onHold != nil, !showCropPad {
+                HoldToTrimChip { holdArmed = false; onHold?() }
+                    .padding(12)
             }
         }
         .aspectRatio(aspect, contentMode: .fit)

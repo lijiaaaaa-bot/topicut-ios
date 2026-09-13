@@ -21,4 +21,8 @@ struct HoldToTrimTests {
     @Test func holdPresentsEditSheetNotRationale() {
         #expect(HoldToTrim.opensEditSheet)
     }
+
+    @Test func chipUsesTheSameCapsuleAsHoldChrome() {
+        #expect(HoldToTrim.capsule == "裁剪")
+    }
 }

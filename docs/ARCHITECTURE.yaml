@@ -448,7 +448,7 @@ implemented:
   - path: Sources/LiveSliceUI/HoldToTrim.swift
     status: implemented
     module: LiveSliceUI
-    purpose: hold-to-trim timings, 裁剪 chrome, quiet 长按画面可裁剪 hint, and a stage-filling iOS hit overlay (one long-press + tap) so VideoPlayer cannot swallow the hold; onComplete opens ClipEditSheet, not 剪辑依据
+    purpose: hold-to-trim timings, 裁剪 chrome, quiet 长按画面可裁剪 hint, SwiftUI full-stage tap/hold (player allowsHitTesting false so AVKit cannot steal hits), and an on-preview 裁剪 chip; both open ClipEditSheet, not 剪辑依据
     called_by:
       - Sources/LiveSliceUI/ClipWorkbenchParts.swift
       - Sources/LiveSliceUI/ClipListView.swift

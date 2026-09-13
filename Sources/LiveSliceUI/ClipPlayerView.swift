@@ -29,6 +29,7 @@ struct ClipPlayerView: View {
     var body: some View {
         GeometryReader { proxy in
             VideoPlayer(player: player)
+                .allowsHitTesting(playback == nil)
                 .overlay(alignment: .bottom) { captionOverlay }
                 .overlay(alignment: .top) { captionErrorBanner }
                 .overlay { if let playbackError { PlaybackFailure(message: playbackError) } }
