@@ -43,10 +43,10 @@ struct HoldToTrimChrome: View {
 
 /// Full-stage hit target. iOS uses UIKit so VideoPlayer cannot swallow the hold.
 struct HoldToTrimSensor: View {
-    var onTap: @escaping () -> Void
-    var onArmed: @escaping () -> Void
-    var onComplete: @escaping () -> Void
-    var onCancel: @escaping () -> Void
+    var onTap: () -> Void
+    var onArmed: () -> Void
+    var onComplete: () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
         #if os(iOS)
@@ -124,7 +124,7 @@ private struct HoldToTrimHit: UIViewRepresentable {
     }
 }
 
-final class HoldToTrimHitView: UIView {
+private final class HoldToTrimHitView: UIView {
     weak var coordinator: HoldToTrimHit.Coordinator?
 
     override init(frame: CGRect) {
