@@ -73,4 +73,58 @@ struct LLMCostTests {
         #expect(LLMCost.text(LLMCharge(yuan: Decimal(string: "1234.567")!, peak: true)) == "约 ¥1234.57")
         #expect(LLMCost.tokenText(usage(prompt: 5000, completion: 135)) == "5,135 token")
     }
+
+    @Test func endpointURLStringTakesOnlyTheBaseURLSegment() {
+        #expect(LLMCost.endpointURLString(from: "deepseek-v4-flash|https://api.deepseek.com") == "https://api.deepseek.com")
+        #expect(
+            LLMCost.endpointURLString(from: "deepseek-v4-flash|https://api.deepseek.com|more+punchy")
+                == "https://api.deepseek.com"
+        )
+        #expect(LLMCost.endpointURLString(from: "deepseek-v4-flash| https://api.deepseek.com |fewer+roomy") == "https://api.deepseek.com")
+        #expect(LLMCost.endpointURLString(from: "no-separator") == nil)
+        #expect(LLMCost.endpointURLString(from: "model|") == nil)
+    }
+
+    @Test func slicedWithTasteSuffixStillEstimatesDeepSeek() throws {
+        let key = PipelineReuse.sliceKey(
+            model: "deepseek-v4-flash",
+            baseURL: "https://api.deepseek.com",
+            taste: SlicingTaste(topicDensity: .more, highlightSpan: .punchy)
+        )
+        #expect(key == "deepseek-v4-flash|https://api.deepseek.com|more+punchy")
+        let charge = try #require(
+            LLMCost.estimate(
+                usage: usage(prompt: 3454, completion: 1681), slicedWith: key, generatedAt: "2026-09-07T13:08:40Z"
+            )
+        )
+        #expect(LLMCost.text(charge) == "约 ¥0.01")
+        #expect(
+            LLMCost.usageLine(
+                usage: usage(prompt: 3454, completion: 1681), slicedWith: key, generatedAt: "2026-09-07T13:08:40Z"
+            ) == "5,135 token · 约 ¥0.01"
+        )
+    }
+
+    @Test func fractionalSecondsTimestampStillEstimates() throws {
+        let charge = try #require(
+            LLMCost.estimate(
+                usage: usage(prompt: 3454, completion: 1681),
+                slicedWith: deepSeek,
+                generatedAt: "2026-09-07T13:08:40.250Z"
+            )
+        )
+        #expect(LLMCost.text(charge) == "约 ¥0.01")
+        #expect(LLMCost.parseGeneratedAt("2026-09-07T13:08:40.250Z") != nil)
+        #expect(LLMCost.parseGeneratedAt("2026-09-07T13:08:40Z") != nil)
+        #expect(LLMCost.parseGeneratedAt("yesterday") == nil)
+    }
+
+    @Test func usageLineKeepsTokensWhenPriceIsUnknown() {
+        let line = LLMCost.usageLine(
+            usage: usage(prompt: 5000, completion: 135),
+            slicedWith: "deepseek-v4-flash|https://api.siliconflow.cn/v1",
+            generatedAt: offPeakTime
+        )
+        #expect(line == "5,135 token")
+    }
 }

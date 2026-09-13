@@ -1,5 +1,5 @@
-// Why: workbench shell — preview, 话题/金句 list, 保存到相册. Edit and look are toolbar
-// icons only; crop/taste/trim never sit on this surface (ADR-0030).
+// Why: workbench shell — preview, 话题/金句, filmstrip, green 保存到相册. Edit and look are
+// circular glass toolbar icons only; crop/taste/trim never sit on this surface (ADR-0030/0031).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -21,6 +21,7 @@ struct ClipListView: View {
     @State var openLookStudio = false
     @State var openSliceStudio = false
     @State var openClipEdit = false
+    @Namespace var editMorph
 
     var isWide: Bool { sizeClass == .regular }
 
@@ -54,9 +55,10 @@ struct ClipListView: View {
     }
 
     private func narrow(result: SessionResult, clips: [EDLClip]?, clip: EDLClip) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             stage(result: result, clip: clip)
-                .containerRelativeFrame(.vertical) { height, _ in height * 0.42 }
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 260)
             ResultTabBar(
                 document: result.document, slicedWith: result.slicedWith, tab: $tab,
                 onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
@@ -126,7 +128,8 @@ struct ClipListView: View {
         if let clips {
             ClipTable(
                 sourceURL: result.sourceURL, clips: clips, selectedID: clip.id, renders: displayRenders(clips),
-                select: selectClip, showRationale: rationaleTap
+                select: selectClip, showRationale: rationaleTap,
+                layout: isWide ? .rows : .filmstrip
             )
             .frame(maxHeight: .infinity)
             .transition(.opacity)
@@ -161,7 +164,7 @@ struct ClipListView: View {
             } label: {
                 saveLabel(for: clip)
             }
-            .buttonStyle(PrimaryButtonStyle(tint: isSavedCurrent(clip) ? savedTint : saveTint))
+            .buttonStyle(SaveBarButtonStyle(tint: isSavedCurrent(clip) ? StudioTheme.success.opacity(0.82) : StudioTheme.success))
             .disabled(isSaving || isExporting(clip) || isSavedCurrent(clip))
             .contentTransition(.symbolEffect(.replace))
             .animation(StudioTheme.motion, value: saved)
@@ -181,17 +184,9 @@ struct ClipListView: View {
             if isSaving {
                 Label("保存中", systemImage: "arrow.down.circle")
             } else {
-                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "square.and.arrow.down")
+                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "photo")
             }
         }
-    }
-
-    private var saveTint: LinearGradient {
-        LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.88)], startPoint: .leading, endPoint: .trailing)
-    }
-
-    private var savedTint: LinearGradient {
-        LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
     }
 
     private func selectClip(_ id: String) {

@@ -150,6 +150,101 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Full-width green save bar matching the workbench mock (photo + 保存到相册).
+struct SaveBarButtonStyle: ButtonStyle {
+    var tint: Color = StudioTheme.success
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(tint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .scaleEffect(configuration.isPressed ? 0.99 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// Zoom-morph id from the scissors glass button into the EDL edit sheet.
+enum WorkbenchMorph {
+    static let edit = "clip-edit"
+}
+
+/// Circular Liquid Glass glyph used by the workbench trailing toolbar.
+struct GlassToolbarIcon: View {
+    let systemName: String
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 38, height: 38)
+            .contentShape(Circle())
+            .workbenchGlassCircle()
+    }
+}
+
+extension View {
+    /// Cool-blue refractive circle via system glass (`glassEffect`).
+    @ViewBuilder
+    func workbenchGlassCircle() -> some View {
+        self.glassEffect(
+            .regular.interactive().tint(StudioTheme.accent.opacity(0.38)),
+            in: Circle()
+        )
+        .overlay {
+            Circle().strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.58),
+                        StudioTheme.accent.opacity(0.45),
+                        Color.white.opacity(0.12)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 0.8
+            )
+        }
+    }
+
+    func workbenchGlassCapsule() -> some View {
+        self.glassEffect(.regular.interactive(), in: Capsule())
+    }
+
+    @ViewBuilder
+    func workbenchEditMorph(namespace: Namespace.ID) -> some View {
+        #if os(iOS)
+        self.navigationTransition(.zoom(sourceID: WorkbenchMorph.edit, in: namespace))
+        #else
+        self
+        #endif
+    }
+}
+
+extension ToolbarContent {
+    /// Own glass circle (not a shared toolbar pill) + zoom source for the edit sheet.
+    func workbenchEditSource(namespace: Namespace.ID) -> some ToolbarContent {
+        #if os(iOS)
+        self.sharedBackgroundVisibility(.hidden)
+            .matchedTransitionSource(id: WorkbenchMorph.edit, in: namespace)
+        #else
+        self
+        #endif
+    }
+
+    /// Own glass circle so scissors and sliders stay two buttons, as in the mock.
+    func workbenchSeparateGlassItem() -> some ToolbarContent {
+        #if os(iOS)
+        self.sharedBackgroundVisibility(.hidden)
+        #else
+        self
+        #endif
+    }
+}
+
 /// Quiet secondary action (text only).
 struct QuietButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

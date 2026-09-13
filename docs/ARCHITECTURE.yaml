@@ -349,7 +349,7 @@ implemented:
   - path: Sources/LiveSliceUI/LLMCost.swift
     status: implemented
     module: LiveSliceUI
-    purpose: token text for any server, and a CNY estimate only for DeepSeek's own endpoint (price sheet for v4-flash / v4-pro / retired alias, cache-hit rate when reported, peak = Beijing Mon-Fri 9-12 + 14-18 at double); nil for other endpoints, unknown models or unreadable timestamps - never a guessed price
+    purpose: token text for any server, and a CNY estimate only for DeepSeek's own endpoint (price sheet for v4-flash / v4-pro / retired alias, cache-hit rate when reported, peak = Beijing Mon-Fri 9-12 + 14-18 at double); parses `model|baseURL|taste` by taking only the URL segment; ISO8601 with fractional seconds; nil for other endpoints, unknown models or unreadable timestamps - never a guessed price
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
   - path: Sources/LiveSliceUI/SessionTypes.swift
@@ -401,7 +401,7 @@ implemented:
   - path: Sources/LiveSliceUI/StudioTheme.swift
     status: implemented
     module: LiveSliceUI
-    purpose: palette, shared spring, glow backdrop, progress ring, primary/quiet button styles, iOS-only bar styling
+    purpose: palette, shared spring, glow backdrop, progress ring, primary/save-bar/quiet button styles, circular system-glass toolbar icons, iOS-only bar styling
     test_exempt: true
     test_exempt_reason: SwiftUI styling constants and views with no logic beyond drawing
     called_by:
@@ -409,8 +409,12 @@ implemented:
       - Sources/LiveSliceUI/HomeView.swift
       - Sources/LiveSliceUI/ProcessingView.swift
       - Sources/LiveSliceUI/ClipListView.swift
+      - Sources/LiveSliceUI/ClipListViewStudios.swift
       - Sources/LiveSliceUI/ClipWorkbenchParts.swift
+      - Sources/LiveSliceUI/ClipTable.swift
       - Sources/LiveSliceUI/ClipDetailView.swift
+      - Sources/LiveSliceUI/ResultTabs.swift
+      - Sources/LiveSliceUI/ParticipatoryControls.swift
       - Sources/LiveSliceUI/SettingsView.swift
   - path: Sources/LiveSliceUI/ProcessingView.swift
     status: implemented
@@ -472,7 +476,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench shell (preview, ResultTabBar, list, export-on-save); no crop/taste/trim on the main surface (ADR-0030); iPad two-column layout
+    purpose: workbench shell (preview, ResultTabBar, filmstrip/list, green save bar); no crop/taste/trim on the main surface (ADR-0030/0031); iPad two-column layout
     test_exempt: true
     test_exempt_reason: SwiftUI view; session calls covered by SliceSessionTests / RerunsTests
     called_by:
@@ -480,7 +484,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListViewStudios.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench toolbar (edit + look) + look/slice studioCover + clip edit half-sheet (ADR-0030)
+    purpose: workbench toolbar (two circular glass icons) + zoom-morph edit half-sheet + look/slice studioCover (ADR-0030/0031)
     test_exempt: true
     test_exempt_reason: SwiftUI chrome; SliceSessionRerunsTests cover resliceFromTaste / describeLook
     called_by:
@@ -496,7 +500,7 @@ implemented:
   - path: Sources/LiveSliceUI/ParticipatoryControls.swift
     status: implemented
     module: LiveSliceUI
-    purpose: CropFocusPad (look-studio phone-portrait pad) + ClipEditSheet (large-handle trim/merge/丢弃/完成, ADR-0030)
+    purpose: CropFocusPad (look-studio phone-portrait pad) + ClipEditSheet (glass half-sheet, large-handle trim/merge/丢弃/完成, ADR-0030/0031)
     test_exempt: true
     test_exempt_reason: SwiftUI; CropFocusStoreTests / SlicingTasteTests / EDLClipTrimTests cover the data path
     called_by:
@@ -506,7 +510,7 @@ implemented:
   - path: Sources/LiveSliceUI/TrimTimeline.swift
     status: implemented
     module: LiveSliceUI
-    purpose: TrimDraft clamp + filmstrip timeline with ≥44pt handles for the edit half-sheet (ADR-0030)
+    purpose: TrimDraft clamp + filmstrip timeline with ≥44pt chevron handles and SMPTE labels for the edit half-sheet (ADR-0030/0031)
     called_by:
       - Sources/LiveSliceUI/ParticipatoryControls.swift
   - path: Sources/LiveSliceUI/CropFocusStore.swift
@@ -519,7 +523,7 @@ implemented:
   - path: Sources/LiveSliceUI/ResultTabs.swift
     status: implemented
     module: LiveSliceUI
-    purpose: ResultTab (topics | highlights) + ResultTabBar (话题|金句 + usage + overflow 重新切片) + StaleHighlightsPanel for documents without highlights (ADR-0022/0030)
+    purpose: ResultTab (topics | highlights) + ResultTabBar (话题|金句 pills + non-collapsing token/¥ line + overflow 重新切片) + StaleHighlightsPanel for documents without highlights (ADR-0022/0030/0031)
     test_exempt: true
     test_exempt_reason: SwiftUI views; the reslice they trigger and the nil-vs-empty highlights they branch on are covered by SliceSessionReuseTests and EDLDocumentTests
     called_by:
@@ -527,12 +531,31 @@ implemented:
   - path: Sources/LiveSliceUI/ClipWorkbenchParts.swift
     status: implemented
     module: LiveSliceUI
-    purpose: PreviewState, ClipStage (poster then live player; optional crop pad used by look studio only), ClipTable (number, frame, title, clock duration, ⋮ 依据), ClipPoster, TimeText
+    purpose: PreviewState, ClipStage (poster then live player; optional crop pad used by look studio only), ClipPoster
     test_exempt: true
-    test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests, TimeText formatting by TimeTextTests
+    test_exempt_reason: SwiftUI views; the render states they display are covered by SliceSessionTests and ClipRendererTests
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
       - Sources/LiveSliceUI/LookStudioLivePreview.swift
+      - Sources/LiveSliceUI/ClipTable.swift
+      - Sources/LiveSliceUI/TrimTimeline.swift
+  - path: Sources/LiveSliceUI/ClipTable.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: phone filmstrip (素材片段 cards) and iPad title rows for the workbench clip list (ADR-0031)
+    test_exempt: true
+    test_exempt_reason: SwiftUI list; TimeTextTests cover heading/range/smpte strings the cards show
+    called_by:
+      - Sources/LiveSliceUI/ClipListView.swift
+  - path: Sources/LiveSliceUI/TimeText.swift
+    status: implemented
+    module: LiveSliceUI
+    purpose: clock, duration, compact, filmstrip heading, source range, and 24 fps SMPTE strings
+    called_by:
+      - Sources/LiveSliceUI/ClipTable.swift
+      - Sources/LiveSliceUI/TrimTimeline.swift
+      - Sources/LiveSliceUI/ProcessingView.swift
+      - Sources/LiveSliceUI/ClipDetailView.swift
   - path: Sources/LiveSliceUI/ClipDetailView.swift
     status: implemented
     module: LiveSliceUI

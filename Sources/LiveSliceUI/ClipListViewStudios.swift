@@ -1,5 +1,5 @@
-// Why: workbench chrome — quiet edit + look toolbar icons, edit half-sheet, look/slice covers.
-// Slice re-entry is the tab-bar overflow, not a third toolbar glyph (ADR-0030).
+// Why: workbench chrome — two circular glass toolbar icons, scissors morph into the edit
+// half-sheet, look/slice covers. Slice re-entry is the tab overflow (ADR-0030 / 0031).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -48,8 +48,10 @@ extension ClipListView {
                 clipEditSheet(result: result, clip: clip)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
-                    .presentationBackground(StudioTheme.background)
+                    .presentationContentInteraction(.scrolls)
+                    .workbenchEditMorph(namespace: editMorph)
             }
+            .sensoryFeedback(.impact(flexibility: .soft), trigger: openClipEdit)
             .alert("保存失败", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
                 Button("好", role: .cancel) {}
             } message: {
@@ -71,16 +73,22 @@ extension ClipListView {
                 Image(systemName: "chevron.left")
             }
         }
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItem(placement: .primaryAction) {
             Button { openClipEdit = true } label: {
-                Image(systemName: "scissors")
+                GlassToolbarIcon(systemName: "scissors")
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("裁切与合并")
+        }
+        .workbenchEditSource(namespace: editMorph)
+        ToolbarItem(placement: .primaryAction) {
             Button { openLookStudio = true } label: {
-                Image(systemName: "slider.horizontal.3")
+                GlassToolbarIcon(systemName: "slider.horizontal.3")
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("成片样式")
         }
+        .workbenchSeparateGlassItem()
     }
 
     func clipEditSheet(result: SessionResult, clip: EDLClip) -> some View {

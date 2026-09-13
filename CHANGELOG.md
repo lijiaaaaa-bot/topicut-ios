@@ -6,6 +6,12 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
+- Workbench trailing toolbar is two circular system-glass buttons (scissors / sliders). Scissors
+  zoom-morph into the EDL edit half-sheet (system glass, filmstrip + merge / 丢弃 / 完成). Phone
+  clip list is a horizontal 素材片段 strip; the save bar uses the photo glyph and a green rounded
+  rect (ADR-0031).
+- `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption with layout priority so
+  it cannot collapse to zero width. Tokens always render when `document.llm` exists.
 - Workbench `ResultTabBar` drops the horizontal clip-title chips. The row is 话题|金句, token/cost,
   and overflow 重新切片; clip titles stay in the list. Caption-style「高亮词」is not on this row.
 - Workbench shell matches the approved 2.0 mockups (ADR-0030): main surface is preview / 话题·金句 /
@@ -20,6 +26,9 @@ EDL `schema_version` changes are listed under their own heading in each release.
   not a black card with `CaptionSample`.
 
 ### Fixed
+- `LLMCost` reads only the baseURL segment of `slicedWith` (`model|baseURL|taste`), so a taste
+  suffix no longer drops the DeepSeek ¥ estimate. ISO8601 timestamps with fractional seconds still
+  parse.
 - 成片样式「高亮词」no longer bricks the preview. Caption paint errors stay a small banner (video
   keeps playing). Selecting highlightWord / 竖屏跟人 · 高亮词 without word timings is refused —
   style stays `.clean` and the existing「重新转写」copy is shown. A single `wordRangeOutOfText`

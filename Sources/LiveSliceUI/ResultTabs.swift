@@ -1,7 +1,7 @@
 // Why: the workbench shows two lists from one slicing call — complete topics and short highlights
-// (ADR-0022). The bar is 话题|金句, token/cost, and an overflow 重新切片 (ADR-0030). Clip titles
-// stay in the list below, not as a second chip row. Old projects without highlights still get
-// one honest panel and one paid button.
+// (ADR-0022). The bar is 话题|金句 pills, a non-collapsing token/¥ line, and overflow 重新切片
+// (ADR-0030/0031). Clip titles stay in the list, not as chips. Old projects without highlights
+// still get one honest panel and one paid button.
 
 import LiveSliceCore
 import SwiftUI
@@ -37,25 +37,19 @@ struct ResultTabBar: View {
     var body: some View {
         HStack(spacing: 8) {
             segmented
-            Spacer(minLength: 8)
             usage
+                .layoutPriority(1)
             overflow
         }
-        .padding(.horizontal, 4)
-        .padding(.top, -4)
+        .padding(.horizontal, 2)
+        .padding(.top, -2)
     }
 
     private var segmented: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             segment(.topics)
-            Text("|")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(StudioTheme.muted.opacity(0.45))
             segment(.highlights)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 5)
-        .background(StudioTheme.raised, in: Capsule())
     }
 
     private func segment(_ t: ResultTab) -> some View {
@@ -63,17 +57,18 @@ struct ResultTabBar: View {
         return Button {
             withAnimation(StudioTheme.motion) { tab = t }
         } label: {
-            HStack(spacing: 4) {
-                if on {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 8, weight: .bold))
+            Text(t.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(on ? .white : StudioTheme.muted)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background {
+                    if on {
+                        Capsule().fill(StudioTheme.accent)
+                    } else {
+                        Capsule().fill(StudioTheme.raised)
+                    }
                 }
-                Text(t.title)
-                    .font(.subheadline.weight(on ? .semibold : .medium))
-            }
-            .foregroundStyle(on ? .white : StudioTheme.muted)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t.title)
@@ -85,15 +80,21 @@ struct ResultTabBar: View {
     private var usage: some View {
         if let usage = document.llm {
             HStack(spacing: 4) {
-                Text(LLMCost.tokenText(usage))
-                if let charge = LLMCost.estimate(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt) {
-                    Text("·")
-                    Text(LLMCost.text(charge))
-                }
+                Image(systemName: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(StudioTheme.cyan)
+                Text(LLMCost.usageLine(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(StudioTheme.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
             }
-            .font(.caption2.monospacedDigit())
-            .foregroundStyle(StudioTheme.muted)
-            .lineLimit(1)
+            .frame(minWidth: 128, maxWidth: .infinity, alignment: .trailing)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(
+                LLMCost.usageLine(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt)
+            )
         }
     }
 

@@ -65,8 +65,8 @@ struct TrimTimeline: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            timeline
             labels
+            timeline
         }
         .onChange(of: draft) { _, new in onDraft(new.leading, new.trailing) }
     }
@@ -80,15 +80,19 @@ struct TrimTimeline: View {
             let right = inset + draft.endFraction * usable
             ZStack(alignment: .leading) {
                 filmstrip
-                    .frame(height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .frame(height: 68)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 selection(left: left, right: right)
-                handle(at: left, move: { draft.moveStart(fraction: ($0 - inset) / usable) })
-                handle(at: right, move: { draft.moveEnd(fraction: ($0 - inset) / usable) })
+                handle(at: left, systemName: "chevron.compact.left") {
+                    draft.moveStart(fraction: ($0 - inset) / usable)
+                }
+                handle(at: right, systemName: "chevron.compact.right") {
+                    draft.moveEnd(fraction: ($0 - inset) / usable)
+                }
             }
             .coordinateSpace(.named("trim"))
         }
-        .frame(height: 64)
+        .frame(height: 76)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("裁切范围")
         .accessibilityValue("\(TimeText.clock(draft.startTime)) 到 \(TimeText.clock(draft.endTime))")
@@ -114,22 +118,29 @@ struct TrimTimeline: View {
 
     private func selection(left: CGFloat, right: CGFloat) -> some View {
         let span = max(right - left, 0)
-        return RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(StudioTheme.accent, lineWidth: 2)
-            .frame(width: span, height: 56)
+        return RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(.white, lineWidth: 2)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: span, height: 68)
             .offset(x: left)
             .allowsHitTesting(false)
     }
 
     static let handleHit: CGFloat = 44
 
-    private func handle(at x: CGFloat, move: @escaping (CGFloat) -> Void) -> some View {
-        Circle()
-            .fill(StudioTheme.accent)
-            .frame(width: 18, height: 18)
+    private func handle(at x: CGFloat, systemName: String, move: @escaping (CGFloat) -> Void) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(.primary)
+            .frame(width: 22, height: 52)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.7), lineWidth: 1)
+            }
             .frame(width: Self.handleHit, height: Self.handleHit)
-            .contentShape(Circle())
-            .position(x: x, y: 32)
+            .contentShape(Rectangle())
+            .position(x: x, y: 38)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named("trim"))
                     .onChanged { value in move(value.location.x) }
@@ -139,11 +150,13 @@ struct TrimTimeline: View {
 
     private var labels: some View {
         HStack {
-            Text(TimeText.clock(draft.startTime))
+            Text(TimeText.smpte(draft.startTime))
             Spacer()
-            Text(TimeText.clock(draft.endTime))
+            Text(TimeText.smpte((draft.startTime + draft.endTime) / 2))
+            Spacer()
+            Text(TimeText.smpte(draft.endTime))
         }
         .font(.caption.monospacedDigit())
-        .foregroundStyle(StudioTheme.muted)
+        .foregroundStyle(.secondary)
     }
 }
