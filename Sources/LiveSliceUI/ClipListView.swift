@@ -1,5 +1,5 @@
-// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Edit and look are
-// circular glass toolbar icons only; crop/taste/trim never sit on this surface (ADR-0030/0031).
+// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Long-press the
+// stage to trim; look is the remaining glass toolbar icon (ADR-0030/0031).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -120,6 +120,14 @@ struct ClipListView: View {
         .id(clip.id)
         .transition(.opacity)
         .frame(maxWidth: .infinity)
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45)
+                .onEnded { _ in openClipEdit = true }
+        )
+        .workbenchEditSource(namespace: editMorph)
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text("裁切与合并")) { openClipEdit = true }
     }
 
     /// Topic/highlight table, or the re-slice offer when highlights are absent.

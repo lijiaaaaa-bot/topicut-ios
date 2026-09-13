@@ -1,5 +1,5 @@
-// Why: workbench chrome — two circular glass toolbar icons, scissors morph into the edit
-// half-sheet, look/slice covers. Slice re-entry is the tab overflow (ADR-0030 / 0031).
+// Why: workbench chrome — glass 成片样式 toolbar icon, long-press stage morphs into the
+// edit half-sheet, look/slice covers. Slice re-entry is the tab overflow (ADR-0030 / 0031).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -73,14 +73,6 @@ extension ClipListView {
                 Image(systemName: "chevron.left")
             }
         }
-        ToolbarItem(placement: .primaryAction) {
-            Button { openClipEdit = true } label: {
-                GlassToolbarIcon(systemName: "scissors")
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("裁切与合并")
-        }
-        .workbenchEditSource(namespace: editMorph)
         ToolbarItem(placement: .primaryAction) {
             Button { openLookStudio = true } label: {
                 GlassToolbarIcon(systemName: "slider.horizontal.3")

@@ -401,7 +401,7 @@ implemented:
   - path: Sources/LiveSliceUI/StudioTheme.swift
     status: implemented
     module: LiveSliceUI
-    purpose: palette, shared spring, glow backdrop, progress ring, primary/save-bar/quiet button styles, circular system-glass toolbar icons, iOS-only bar styling
+    purpose: palette, shared spring, glow backdrop, progress ring, primary/save-bar/quiet button styles, circular system-glass look-toolbar icon, iOS-only bar styling
     test_exempt: true
     test_exempt_reason: SwiftUI styling constants and views with no logic beyond drawing
     called_by:
@@ -484,7 +484,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListViewStudios.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench toolbar (two circular glass icons) + zoom-morph edit half-sheet + look/slice studioCover (ADR-0030/0031)
+    purpose: workbench toolbar (glass 成片样式) + long-press stage zoom-morphs into edit half-sheet + look/slice studioCover (ADR-0030/0031)
     test_exempt: true
     test_exempt_reason: SwiftUI chrome; SliceSessionRerunsTests cover resliceFromTaste / describeLook
     called_by:

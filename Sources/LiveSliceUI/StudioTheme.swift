@@ -167,7 +167,7 @@ struct SaveBarButtonStyle: ButtonStyle {
     }
 }
 
-/// Zoom-morph id from the scissors glass button into the EDL edit sheet.
+/// Zoom-morph id from the workbench preview into the EDL edit sheet.
 enum WorkbenchMorph {
     static let edit = "clip-edit"
 }
@@ -222,20 +222,19 @@ extension View {
         self
         #endif
     }
-}
 
-extension ToolbarContent {
-    /// Own glass circle (not a shared toolbar pill) + zoom source for the edit sheet.
-    func workbenchEditSource(namespace: Namespace.ID) -> some ToolbarContent {
+    @ViewBuilder
+    func workbenchEditSource(namespace: Namespace.ID) -> some View {
         #if os(iOS)
-        self.sharedBackgroundVisibility(.hidden)
-            .matchedTransitionSource(id: WorkbenchMorph.edit, in: namespace)
+        self.matchedTransitionSource(id: WorkbenchMorph.edit, in: namespace)
         #else
         self
         #endif
     }
+}
 
-    /// Own glass circle so scissors and sliders stay two buttons, as in the mock.
+extension ToolbarContent {
+    /// Own glass circle so the look button is not a shared toolbar pill.
     func workbenchSeparateGlassItem() -> some ToolbarContent {
         #if os(iOS)
         self.sharedBackgroundVisibility(.hidden)

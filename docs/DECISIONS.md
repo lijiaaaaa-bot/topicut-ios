@@ -143,9 +143,9 @@ Format: `## ADR-NNNN <title>`; never renumber; supersede by adding a new ADR.
 ## ADR-0031 工作台玻璃工具钮、裁切半屏形变、费用行解析
 
 - 状态: 已采纳，已实现（2026-09-13）
-- 决策: 在 ADR-0030 外壳上对齐新的工作台效果图，不改媒体/EDL/ASR 引擎。（1）右上角两颗独立圆形系统玻璃按钮（`glassEffect`）：剪刀打开 EDL 裁切，滑块打开成片样式。导航栏不写产品名。（2）点剪刀用 `matchedTransitionSource` + `navigationTransition(.zoom)` 从按钮形变到中大号半屏；半屏走系统玻璃，不再铺实色底。内容仍是胶片轴、≥44pt 手柄、与下一条合并、丢弃、完成——效果图底部的分割/插入/标记条不实现。（3）`LLMCost` 只取 `slicedWith` 的 baseURL 段（`model|baseURL|taste`），ISO8601 带小数秒也能解析；话题栏费用行有最小宽度与 layoutPriority，有 `document.llm` 就显示 token，DeepSeek 官方价再跟 ¥。（4）手机主面切片列表改为横向「素材片段」胶片条；iPad 仍用标题行。
-- 理由: 效果图锁定的是玻璃工具钮 + 剪刀展开半屏 + 费用行可见。taste 写入 `sliceKey` 之后若把第一根 `|` 之后整段当 URL，`URL(string:)` 失败，真机上 ¥ 消失；实色 `presentationBackground` 会抹掉系统玻璃半屏。
-- 后果: `LLMCost.endpointURLString` / `parseGeneratedAt` / `usageLine` 有单测。ResultTabBar 仍无标题 chips。高亮词预览安全路径不动。真机反馈后手机列表改回纵向标题行，不再用横向小卡片。
+- 决策: 在 ADR-0030 外壳上对齐新的工作台效果图，不改媒体/EDL/ASR 引擎。（1）工具栏只留成片样式的圆形系统玻璃按钮（`glassEffect`）。导航栏不写产品名。长按预览打开 EDL 裁切半屏（VoiceOver 用无障碍动作「裁切与合并」），不再用剪刀图标增加决策成本。（2）半屏从预览 `matchedTransitionSource` + `navigationTransition(.zoom)` 形变；走系统玻璃，不再铺实色底。内容仍是胶片轴、≥44pt 手柄、与下一条合并、丢弃、完成——效果图底部的分割/插入/标记条不实现。（3）`LLMCost` 只取 `slicedWith` 的 baseURL 段（`model|baseURL|taste`），ISO8601 带小数秒也能解析；话题栏费用行让位于 话题/金句 固有宽度，有 `document.llm` 就显示 token，DeepSeek 官方价再跟 ¥。（4）手机与 iPad 主面切片列表都是纵向标题行。
+- 理由: 效果图曾锁定玻璃剪刀钮，真机反馈是剪刀要人猜、不如长按预览。taste 写入 `sliceKey` 之后若把第一根 `|` 之后整段当 URL，`URL(string:)` 失败，真机上 ¥ 消失；实色 `presentationBackground` 会抹掉系统玻璃半屏。
+- 后果: `LLMCost.endpointURLString` / `parseGeneratedAt` / `usageLine` 有单测。ResultTabBar 仍无标题 chips。高亮词预览安全路径不动。真机反馈后手机列表改回纵向标题行，不再用横向小卡片；剪刀工具钮已去掉。
 
 ## ADR-0028 转写后进入切片工作室，显式开始才调用 AI
 
