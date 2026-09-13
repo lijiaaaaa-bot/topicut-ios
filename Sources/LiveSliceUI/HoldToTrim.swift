@@ -103,9 +103,10 @@ private struct HoldToTrimHit: UIViewRepresentable {
         var onComplete: () -> Void = {}
         var onCancel: () -> Void = {}
         var opened = false
-        var openTimer: Timer?
+        /// `Task` is Sendable so `deinit` can cancel it. `Timer` is not (iphoneos Swift 6).
+        var openTask: Task<Void, Never>?
 
-        deinit { openTimer?.invalidate() }
+        deinit { openTask?.cancel() }
 
         func bind(onTap: @escaping () -> Void, onArmed: @escaping () -> Void, onComplete: @escaping () -> Void, onCancel: @escaping () -> Void) {
             self.onTap = onTap
@@ -137,20 +138,27 @@ private struct HoldToTrimHit: UIViewRepresentable {
         }
 
         private func scheduleOpen() {
-            openTimer?.invalidate()
+            openTask?.cancel()
             let remain = HoldToTrim.openAfter - HoldToTrim.armAfter
-            openTimer = Timer.scheduledTimer(withTimeInterval: remain, repeats: false) { [weak self] _ in
-                guard let self else { return }
-                self.opened = true
-                self.openTimer?.invalidate()
-                self.openTimer = nil
-                self.onComplete()
+            openTask = Task { [weak self] in
+                do {
+                    try await Task.sleep(for: .seconds(remain))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self, !Task.isCancelled else { return }
+                    self.opened = true
+                    self.openTask = nil
+                    self.onComplete()
+                }
             }
         }
 
         private func cancelHold() {
-            openTimer?.invalidate()
-            openTimer = nil
+            openTask?.cancel()
+            openTask = nil
             if !opened { onCancel() }
         }
     }
