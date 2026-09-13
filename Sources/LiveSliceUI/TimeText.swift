@@ -26,16 +26,6 @@ enum TimeText {
         return "\(s)秒"
     }
 
-    /// Source range under a filmstrip card (`00:00 – 00:18`).
-    static func range(from start: Double, to end: Double) -> String {
-        "\(clock(start)) – \(clock(end))"
-    }
-
-    /// Phone filmstrip section title matching the workbench mock.
-    static func filmstripHeading(_ count: Int) -> String {
-        "素材片段(\(count))"
-    }
-
     /// `HH:MM:SS:FF` at `fps` (edit-sheet mock is 24 fps). Negative input clamps to zero.
     static func smpte(_ seconds: Double, fps: Int = 24) -> String {
         let rate = max(1, fps)

@@ -1,13 +1,8 @@
-// Why: workbench clip list — phone filmstrip matching the mock, iPad keep the title rows.
-// Titles stay here, never as ResultTabBar chips (ADR-0030 / 0031).
+// Why: workbench clip list — numbered rows with poster, full title, duration, export mark.
+// Titles stay here, never as ResultTabBar chips (ADR-0030 / 0031). Phone and iPad share this.
 
 import LiveSliceCore
 import SwiftUI
-
-enum ClipListLayout {
-    case rows
-    case filmstrip
-}
 
 /// Number, first frame, title, duration, export mark. Tap plays; ⋮ opens 依据 on phone rows.
 struct ClipTable: View {
@@ -18,16 +13,8 @@ struct ClipTable: View {
     let select: (String) -> Void
     /// Tap on the selected row; nil where the rationale is already on screen (iPad).
     let showRationale: (() -> Void)?
-    var layout: ClipListLayout = .rows
 
     var body: some View {
-        switch layout {
-        case .rows: rowList
-        case .filmstrip: filmstrip
-        }
-    }
-
-    private var rowList: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 6) {
@@ -42,78 +29,6 @@ struct ClipTable: View {
                 withAnimation(StudioTheme.motion) { proxy.scrollTo(id, anchor: nil) }
             }
         }
-    }
-
-    private var filmstrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(TimeText.filmstripHeading(clips.count))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(clips, id: \.id) { clip in
-                            card(clip)
-                                .id(clip.id)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                .onChange(of: selectedID) { _, id in
-                    withAnimation(StudioTheme.motion) { proxy.scrollTo(id, anchor: .center) }
-                }
-            }
-        }
-    }
-
-    private func card(_ clip: EDLClip) -> some View {
-        let on = clip.id == selectedID
-        return Button {
-            if clip.id == selectedID {
-                showRationale?()
-            } else {
-                withAnimation(StudioTheme.motion) { select(clip.id) }
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                ZStack(alignment: .topTrailing) {
-                    ClipPoster(url: sourceURL, seconds: clip.startSec, maximumSize: CGSize(width: 280, height: 180))
-                        .frame(width: 120, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    if on {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, StudioTheme.accent)
-                            .padding(4)
-                    }
-                    Text(TimeText.clock(clip.keptDurationSec))
-                        .font(.caption2.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(4)
-                }
-                .frame(width: 120, height: 76)
-                Text(clip.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Text(TimeText.range(from: clip.startSec, to: clip.endSec))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(StudioTheme.muted)
-                    .lineLimit(1)
-            }
-            .frame(width: 120, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(minHeight: 44)
-        .accessibilityLabel(clip.title)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func row(index: Int, clip: EDLClip) -> some View {

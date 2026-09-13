@@ -476,7 +476,7 @@ implemented:
   - path: Sources/LiveSliceUI/ClipListView.swift
     status: implemented
     module: LiveSliceUI
-    purpose: workbench shell (preview, ResultTabBar, filmstrip/list, green save bar); no crop/taste/trim on the main surface (ADR-0030/0031); iPad two-column layout
+    purpose: workbench shell (preview, ResultTabBar, title-row list, green save bar); no crop/taste/trim on the main surface (ADR-0030/0031); iPad two-column layout
     test_exempt: true
     test_exempt_reason: SwiftUI view; session calls covered by SliceSessionTests / RerunsTests
     called_by:
@@ -542,15 +542,15 @@ implemented:
   - path: Sources/LiveSliceUI/ClipTable.swift
     status: implemented
     module: LiveSliceUI
-    purpose: phone filmstrip (素材片段 cards) and iPad title rows for the workbench clip list (ADR-0031)
+    purpose: numbered title rows (poster, title, duration, export mark) for the workbench clip list
     test_exempt: true
-    test_exempt_reason: SwiftUI list; TimeTextTests cover heading/range/smpte strings the cards show
+    test_exempt_reason: SwiftUI list; TimeTextTests cover the duration strings the rows show
     called_by:
       - Sources/LiveSliceUI/ClipListView.swift
   - path: Sources/LiveSliceUI/TimeText.swift
     status: implemented
     module: LiveSliceUI
-    purpose: clock, duration, compact, filmstrip heading, source range, and 24 fps SMPTE strings
+    purpose: clock, duration, compact, and 24 fps SMPTE strings
     called_by:
       - Sources/LiveSliceUI/ClipTable.swift
       - Sources/LiveSliceUI/TrimTimeline.swift

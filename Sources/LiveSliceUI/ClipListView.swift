@@ -1,4 +1,4 @@
-// Why: workbench shell — preview, 话题/金句, filmstrip, green 保存到相册. Edit and look are
+// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Edit and look are
 // circular glass toolbar icons only; crop/taste/trim never sit on this surface (ADR-0030/0031).
 
 import LiveSliceCore
@@ -128,8 +128,7 @@ struct ClipListView: View {
         if let clips {
             ClipTable(
                 sourceURL: result.sourceURL, clips: clips, selectedID: clip.id, renders: displayRenders(clips),
-                select: selectClip, showRationale: rationaleTap,
-                layout: isWide ? .rows : .filmstrip
+                select: selectClip, showRationale: rationaleTap
             )
             .frame(maxHeight: .infinity)
             .transition(.opacity)

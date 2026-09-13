@@ -7,9 +7,9 @@ EDL `schema_version` changes are listed under their own heading in each release.
 
 ### Changed
 - Workbench trailing toolbar is two circular system-glass buttons (scissors / sliders). Scissors
-  zoom-morph into the EDL edit half-sheet (system glass, filmstrip + merge / 丢弃 / 完成). Phone
-  clip list is a horizontal 素材片段 strip; the save bar uses the photo glyph and a green rounded
-  rect (ADR-0031).
+  zoom-morph into the EDL edit half-sheet (system glass, trim filmstrip + merge / 丢弃 / 完成).
+  Phone clip list is vertical numbered title rows again (horizontal 素材片段 cards were rejected
+  for density); the save bar uses the photo glyph and a green rounded rect (ADR-0031).
 - `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption. Tabs (`话题` / `金句`)
   keep intrinsic width (`fixedSize` + layoutPriority); the fee shrinks or wraps underneath so it
   cannot crush the labels to empty pills. Tokens always render when `document.llm` exists.
