@@ -1,5 +1,5 @@
-// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Long-press the
-// stage to trim; look is the remaining glass toolbar icon (ADR-0030/0031).
+// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Hold the stage
+// to trim (裁剪 tip + 长按画面可裁剪); look is the remaining glass toolbar icon (ADR-0031).
 
 import LiveSliceCore
 import LiveSliceRender
