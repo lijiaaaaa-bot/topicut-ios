@@ -77,8 +77,8 @@ struct ClipTable: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 ZStack(alignment: .topTrailing) {
-                    ClipPoster(url: sourceURL, seconds: clip.startSec, maximumSize: CGSize(width: 240, height: 160))
-                        .frame(width: 92, height: 60)
+                    ClipPoster(url: sourceURL, seconds: clip.startSec, maximumSize: CGSize(width: 280, height: 180))
+                        .frame(width: 120, height: 76)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     if on {
                         Image(systemName: "checkmark.circle.fill")
@@ -96,17 +96,18 @@ struct ClipTable: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .padding(4)
                 }
-                .frame(width: 92, height: 60)
+                .frame(width: 120, height: 76)
                 Text(clip.title)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
                 Text(TimeText.range(from: clip.startSec, to: clip.endSec))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(StudioTheme.muted)
                     .lineLimit(1)
             }
-            .frame(width: 92, alignment: .leading)
+            .frame(width: 120, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

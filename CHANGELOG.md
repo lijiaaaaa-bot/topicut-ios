@@ -10,8 +10,9 @@ EDL `schema_version` changes are listed under their own heading in each release.
   zoom-morph into the EDL edit half-sheet (system glass, filmstrip + merge / 丢弃 / 完成). Phone
   clip list is a horizontal 素材片段 strip; the save bar uses the photo glyph and a green rounded
   rect (ADR-0031).
-- `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption with layout priority so
-  it cannot collapse to zero width. Tokens always render when `document.llm` exists.
+- `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption. Tabs (`话题` / `金句`)
+  keep intrinsic width (`fixedSize` + layoutPriority); the fee shrinks or wraps underneath so it
+  cannot crush the labels to empty pills. Tokens always render when `document.llm` exists.
 - Workbench `ResultTabBar` drops the horizontal clip-title chips. The row is 话题|金句, token/cost,
   and overflow 重新切片; clip titles stay in the list. Caption-style「高亮词」is not on this row.
 - Workbench shell matches the approved 2.0 mockups (ADR-0030): main surface is preview / 话题·金句 /

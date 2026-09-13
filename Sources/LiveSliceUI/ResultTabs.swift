@@ -1,5 +1,5 @@
 // Why: the workbench shows two lists from one slicing call — complete topics and short highlights
-// (ADR-0022). The bar is 话题|金句 pills, a non-collapsing token/¥ line, and overflow 重新切片
+// (ADR-0022). Tabs keep intrinsic 话题/金句 width; the token/¥ line yields or wraps under them
 // (ADR-0030/0031). Clip titles stay in the list, not as chips. Old projects without highlights
 // still get one honest panel and one paid button.
 
@@ -35,11 +35,26 @@ struct ResultTabBar: View {
     var sliceTasteStale: Bool = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            segmented
-            usage
-                .layoutPriority(1)
-            overflow
+        // Tabs must keep their intrinsic width. A prior fee row used
+        // layoutPriority(1) + minWidth 128 + maxWidth ∞ and crushed 话题/金句
+        // to empty capsules while the token line stayed visible.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 8) {
+                segmented
+                usageLabel(lineLimit: 1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .layoutPriority(0)
+                overflow
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    segmented
+                    Spacer(minLength: 8)
+                    overflow
+                }
+                usageLabel(lineLimit: 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.horizontal, 2)
         .padding(.top, -2)
@@ -50,6 +65,8 @@ struct ResultTabBar: View {
             segment(.topics)
             segment(.highlights)
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(2)
     }
 
     private func segment(_ t: ResultTab) -> some View {
@@ -60,6 +77,8 @@ struct ResultTabBar: View {
             Text(t.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(on ? .white : StudioTheme.muted)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background {
@@ -71,30 +90,31 @@ struct ResultTabBar: View {
                 }
         }
         .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(2)
         .accessibilityLabel(t.title)
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityValue(pillValue(t.clips(in: document)?.count))
     }
 
     @ViewBuilder
-    private var usage: some View {
+    private func usageLabel(lineLimit: Int) -> some View {
         if let usage = document.llm {
+            let line = LLMCost.usageLine(
+                usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt
+            )
             HStack(spacing: 4) {
                 Image(systemName: "sparkles")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(StudioTheme.cyan)
-                Text(LLMCost.usageLine(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt))
+                Text(line)
                     .font(.caption.monospaced())
                     .foregroundStyle(StudioTheme.muted)
-                    .lineLimit(1)
+                    .lineLimit(lineLimit)
                     .minimumScaleFactor(0.7)
                     .allowsTightening(true)
             }
-            .frame(minWidth: 128, maxWidth: .infinity, alignment: .trailing)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel(
-                LLMCost.usageLine(usage: usage, slicedWith: slicedWith, generatedAt: document.generatedAt)
-            )
+            .accessibilityLabel(line)
         }
     }
 
