@@ -15,6 +15,7 @@ struct ClipPlayerView: View {
     let style: CaptionStyle
     let tune: CaptionTune
     let clipID: String
+    var playback: PlaybackControl? = nil
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
     @State private var observer: Any?
@@ -28,6 +29,7 @@ struct ClipPlayerView: View {
     var body: some View {
         GeometryReader { proxy in
             VideoPlayer(player: player)
+                .allowsHitTesting(playback == nil)
                 .overlay(alignment: .bottom) { captionOverlay }
                 .overlay(alignment: .top) { captionErrorBanner }
                 .overlay { if let playbackError { PlaybackFailure(message: playbackError) } }
@@ -84,7 +86,14 @@ struct ClipPlayerView: View {
             Task { @MainActor in paint(force: false) }
         }
         player.play()
+        bindPlayback()
         paint(force: true)
+    }
+
+    private func bindPlayback() {
+        playback?.toggle = { [player] in
+            if player.timeControlStatus == .paused { player.play() } else { player.pause() }
+        }
     }
 
     private func paint(force: Bool) {
@@ -179,6 +188,7 @@ struct ClipPlayerView: View {
         captionKey = ""
         captionError = nil
         playbackError = nil
+        playback?.toggle = {}
     }
 }
 

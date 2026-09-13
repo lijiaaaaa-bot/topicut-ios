@@ -32,11 +32,12 @@ enum LLMCost {
     static let beijing = TimeZone(identifier: "Asia/Shanghai")
 
     /// The estimate, or nil when the endpoint is not DeepSeek's, the model has no entry, or the
-    /// document's timestamp cannot be read. `slicedWith` is `model|baseURL`; a nil (pre-provenance
-    /// record) is taken as the DeepSeek default the app shipped with, provided the model is DeepSeek's.
+    /// document's timestamp cannot be read. `slicedWith` is `model|baseURL` or
+    /// `model|baseURL|taste` (ADR-0026); a nil (pre-provenance record) is taken as the DeepSeek
+    /// default the app shipped with, provided the model is DeepSeek's.
     static func estimate(usage: LLMUsage, slicedWith: String?, generatedAt: String) -> LLMCharge? {
         guard endpointIsDeepSeek(slicedWith), let sheet = deepSeekOffPeak[usage.model] else { return nil }
-        guard let date = ISO8601DateFormatter().date(from: generatedAt) else { return nil }
+        guard let date = parseGeneratedAt(generatedAt) else { return nil }
         let peak = isPeak(date)
         let hit: Int
         if let reported = usage.promptCacheHitTokens { hit = min(max(reported, 0), usage.promptTokens) } else { hit = 0 }
@@ -44,6 +45,36 @@ enum LLMCost {
         var yuan = perMillion(miss, sheet.inputMiss) + perMillion(hit, sheet.inputHit) + perMillion(usage.completionTokens, sheet.output)
         if peak { yuan *= 2 }
         return LLMCharge(yuan: yuan, peak: peak)
+    }
+
+    /// Token text, plus ` · 约 ¥…` when DeepSeek official pricing applies. Always non-empty when
+    /// the caller has an `LLMUsage` — the fee row must never have to invent a placeholder.
+    static func usageLine(usage: LLMUsage, slicedWith: String?, generatedAt: String) -> String {
+        let tokens = tokenText(usage)
+        guard let charge = estimate(usage: usage, slicedWith: slicedWith, generatedAt: generatedAt) else {
+            return tokens
+        }
+        return "\(tokens) · \(text(charge))"
+    }
+
+    /// The baseURL segment of `model|baseURL` or `model|baseURL|taste`. Everything after the
+    /// first `|` used to be treated as a URL, so a taste suffix made `URL(string:)` fail.
+    static func endpointURLString(from slicedWith: String) -> String? {
+        let parts = slicedWith.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 2 else { return nil }
+        let raw = parts[1].trimmingCharacters(in: .whitespaces)
+        return raw.isEmpty ? nil : raw
+    }
+
+    /// `Date.ISO8601Format()` sometimes writes fractional seconds; the default ISO parser
+    /// rejects those. Try with, then without, fractional seconds — never guess a date.
+    static func parseGeneratedAt(_ raw: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: raw) { return date }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: raw)
     }
 
     /// DeepSeek's peak window: Beijing time, Monday–Friday, 9:00–12:00 and 14:00–18:00.
@@ -71,9 +102,9 @@ enum LLMCost {
 
     private static func endpointIsDeepSeek(_ slicedWith: String?) -> Bool {
         guard let slicedWith else { return true }
-        guard let bar = slicedWith.firstIndex(of: "|") else { return false }
-        let base = String(slicedWith[slicedWith.index(after: bar)...])
-        guard let host = URL(string: base)?.host() else { return false }
+        guard let base = endpointURLString(from: slicedWith), let host = URL(string: base)?.host() else {
+            return false
+        }
         return host.lowercased() == deepSeekHost
     }
 

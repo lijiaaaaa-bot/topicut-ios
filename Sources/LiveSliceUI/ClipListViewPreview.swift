@@ -23,6 +23,7 @@ extension ClipListView {
     }
 
     func buildPreview(result: SessionResult, clip: EDLClip) async {
+        if session.isRendering(clip.id) { return }
         preview = .loading
         do {
             let playable = session.clipForPreview(clip)

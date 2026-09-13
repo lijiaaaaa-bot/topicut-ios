@@ -6,6 +6,15 @@ EDL `schema_version` changes are listed under their own heading in each release.
 ## [Unreleased]
 
 ### Changed
+- Workbench trailing toolbar is one circular system-glass 成片样式 button. Holding the preview
+  arms a 裁剪 capsule (~0.2s) then opens the EDL edit half-sheet (~0.48s); a quiet
+  `长按画面可裁剪` line sits under the stage. Workbench `VideoPlayer` does not hit-test; a
+  SwiftUI full-stage layer owns tap (play/pause) and long-press (裁剪 chrome then ClipEditSheet).
+  A corner 裁剪 chip is the same action. Not a toolbar scissors. Phone clip list is vertical
+  numbered title rows (ADR-0031).
+- `ResultTabBar` fee line is a monospaced `5,135 token · 约 ¥0.01` caption. Tabs (`话题` / `金句`)
+  keep intrinsic width (`fixedSize` + layoutPriority); the fee shrinks or wraps underneath so it
+  cannot crush the labels to empty pills. Tokens always render when `document.llm` exists.
 - Workbench `ResultTabBar` drops the horizontal clip-title chips. The row is 话题|金句, token/cost,
   and overflow 重新切片; clip titles stay in the list. Caption-style「高亮词」is not on this row.
 - Workbench shell matches the approved 2.0 mockups (ADR-0030): main surface is preview / 话题·金句 /
@@ -20,6 +29,15 @@ EDL `schema_version` changes are listed under their own heading in each release.
   not a black card with `CaptionSample`.
 
 ### Fixed
+- Save/export treats `AVError.operationInterrupted` (-11847) as cancel → idle when the Task was
+  cancelled; otherwise one automatic retry; still failing uses `导出被中断，请再试一次。` instead of
+  the raw AVFoundation dump. `RenderInterrupt.run` stays on the main actor (no sending
+  `invokeRender` across isolation). `SourceMediaGate` uses acquire/release so MainActor preview
+  work is not sent into the actor. Opening the long-press trim sheet does not tear down preview
+  while that clip is `.rendering`.
+- `LLMCost` reads only the baseURL segment of `slicedWith` (`model|baseURL|taste`), so a taste
+  suffix no longer drops the DeepSeek ¥ estimate. ISO8601 timestamps with fractional seconds still
+  parse.
 - 成片样式「高亮词」no longer bricks the preview. Caption paint errors stay a small banner (video
   keeps playing). Selecting highlightWord / 竖屏跟人 · 高亮词 without word timings is refused —
   style stays `.clean` and the existing「重新转写」copy is shown. A single `wordRangeOutOfText`

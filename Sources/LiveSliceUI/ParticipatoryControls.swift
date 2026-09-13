@@ -101,57 +101,79 @@ struct ClipEditSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 18) {
+            header
             TrimTimeline(draft: $draft, sourceURL: sourceURL, onDraft: onDraftTrim)
             actionRow
-            completeRow
+            Text("拖动修剪手柄调整入点和出点")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(StudioTheme.background)
-        .preferredColorScheme(.dark)
         .onChange(of: duration) { _, new in
             draft = TrimDraft(duration: new, originStart: originStart)
         }
     }
 
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("编辑 EDL")
+                    .font(.title3.weight(.semibold))
+                Text("修剪片段 · 与下一条合并")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 8) {
+                Label("时间线", systemImage: "timeline.selection")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .workbenchGlassCapsule()
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭")
+            }
+        }
+    }
+
     private var actionRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button(action: onMerge) {
                 Label("与下一条合并", systemImage: "arrow.triangle.merge")
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(StudioTheme.raised, in: Capsule())
+                    .frame(minHeight: 44)
             }
             .disabled(!canMerge)
             .opacity(canMerge ? 1 : 0.4)
-            Button(action: dismiss) {
+            .workbenchGlassCapsule()
+            Button(role: .destructive, action: dismiss) {
                 Label("丢弃", systemImage: "trash")
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color(red: 0.38, green: 0.12, blue: 0.14), in: Capsule())
+                    .frame(minHeight: 44)
             }
-        }
-        .font(.body.weight(.semibold))
-        .foregroundStyle(.white)
-        .buttonStyle(.plain)
-    }
-
-    private var completeRow: some View {
-        HStack {
-            Spacer()
+            .foregroundStyle(.red)
+            .workbenchGlassCapsule()
             Button(action: complete) {
-                Image(systemName: "checkmark")
-                    .font(.title2.weight(.bold))
+                Label("完成", systemImage: "checkmark")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
                     .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(StudioTheme.accent, in: Circle())
+                    .background(StudioTheme.accent, in: Capsule())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("完成")
         }
+        .font(.subheadline.weight(.semibold))
+        .buttonStyle(.plain)
     }
 
     private func complete() {

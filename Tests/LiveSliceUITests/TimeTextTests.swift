@@ -21,4 +21,10 @@ struct TimeTextTests {
         #expect(TimeText.compact(62) == "1分02秒")
         #expect(TimeText.compact(430) == "7分10秒")
     }
+
+    @Test func smpteUsesFramesAtTheGivenFps() {
+        #expect(TimeText.smpte(12.625, fps: 24) == "00:00:12:15")
+        #expect(TimeText.smpte(0) == "00:00:00:00")
+        #expect(TimeText.smpte(-1) == "00:00:00:00")
+    }
 }

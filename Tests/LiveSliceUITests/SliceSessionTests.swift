@@ -10,7 +10,8 @@ import Photos
 @MainActor
 struct SliceSessionTests {
     static func dependencies(
-        transcribeError: Error? = nil, sliceError: Error? = nil, renderError: Error? = nil
+        transcribeError: Error? = nil, sliceError: Error? = nil, renderError: Error? = nil,
+        renderQueue: RenderErrorQueue? = nil
     ) -> SessionDependencies {
         SessionDependencies(
             prepareModel: { preference, progress in
@@ -30,6 +31,7 @@ struct SliceSessionTests {
                 return try SessionFixtures.document()
             },
             render: { _, clip, cues, _, _, _, _, _, _, _, output, progress in
+                if let queued = renderQueue?.pop() { throw queued }
                 if let renderError { throw renderError }
                 #expect(clip.id == "f_01_c_01")
                 #expect(cues.count == 2)

@@ -1,5 +1,5 @@
-// Why: workbench shell — preview, 话题/金句 list, 保存到相册. Edit and look are toolbar
-// icons only; crop/taste/trim never sit on this surface (ADR-0030).
+// Why: workbench shell — preview, 话题/金句, title rows, green 保存到相册. Hold the stage
+// to trim (裁剪 tip + 长按画面可裁剪); look is the remaining glass toolbar icon (ADR-0031).
 
 import LiveSliceCore
 import LiveSliceRender
@@ -21,6 +21,7 @@ struct ClipListView: View {
     @State var openLookStudio = false
     @State var openSliceStudio = false
     @State var openClipEdit = false
+    @Namespace var editMorph
 
     var isWide: Bool { sizeClass == .regular }
 
@@ -54,9 +55,10 @@ struct ClipListView: View {
     }
 
     private func narrow(result: SessionResult, clips: [EDLClip]?, clip: EDLClip) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             stage(result: result, clip: clip)
-                .containerRelativeFrame(.vertical) { height, _ in height * 0.42 }
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 260)
             ResultTabBar(
                 document: result.document, slicedWith: result.slicedWith, tab: $tab,
                 onReslice: { openSliceStudio = true }, sliceTasteStale: session.sliceTasteStale
@@ -109,15 +111,24 @@ struct ClipListView: View {
     }
 
     private func stage(result: SessionResult, clip: EDLClip) -> some View {
-        ClipStage(
-            preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec,
-            captionStyle: session.captionStyle, captionTune: session.captionTune, clipID: clip.id,
-            cropFocus: session.cropFocus(for: clip.id), cropZoom: session.cropZoom(for: clip.id),
-            showCropPad: false
-        )
-        .id(clip.id)
-        .transition(.opacity)
-        .frame(maxWidth: .infinity)
+        VStack(spacing: 6) {
+            ClipStage(
+                preview: preview, aspect: sourceAspect, sourceURL: result.sourceURL, posterSeconds: clip.startSec,
+                captionStyle: session.captionStyle, captionTune: session.captionTune, clipID: clip.id,
+                cropFocus: session.cropFocus(for: clip.id), cropZoom: session.cropZoom(for: clip.id),
+                showCropPad: false, onHold: { openClipEdit = true }
+            )
+            .id(clip.id)
+            .transition(.opacity)
+            .frame(maxWidth: .infinity)
+            .workbenchEditSource(namespace: editMorph)
+            .accessibilityElement(children: .contain)
+            .accessibilityAction(named: Text(HoldToTrim.access)) { openClipEdit = true }
+            Text(HoldToTrim.hint)
+                .font(.caption)
+                .foregroundStyle(StudioTheme.muted)
+                .frame(maxWidth: .infinity)
+        }
     }
 
     /// Topic/highlight table, or the re-slice offer when highlights are absent.
@@ -161,7 +172,7 @@ struct ClipListView: View {
             } label: {
                 saveLabel(for: clip)
             }
-            .buttonStyle(PrimaryButtonStyle(tint: isSavedCurrent(clip) ? savedTint : saveTint))
+            .buttonStyle(SaveBarButtonStyle(tint: isSavedCurrent(clip) ? StudioTheme.success.opacity(0.82) : StudioTheme.success))
             .disabled(isSaving || isExporting(clip) || isSavedCurrent(clip))
             .contentTransition(.symbolEffect(.replace))
             .animation(StudioTheme.motion, value: saved)
@@ -181,21 +192,19 @@ struct ClipListView: View {
             if isSaving {
                 Label("保存中", systemImage: "arrow.down.circle")
             } else {
-                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "square.and.arrow.down")
+                Label(ExportLookText.saveTitle(style: session.captionStyle, position: session.captionPosition, framing: session.framingMode, tune: session.captionTune), systemImage: "photo")
             }
         }
     }
 
-    private var saveTint: LinearGradient {
-        LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.88)], startPoint: .leading, endPoint: .trailing)
-    }
-
-    private var savedTint: LinearGradient {
-        LinearGradient(colors: [StudioTheme.success, StudioTheme.success.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
-    }
-
     private func selectClip(_ id: String) {
         selectedID = id
+        reloadPreviewUnlessExporting(id)
+    }
+
+    /// Opening the trim sheet or changing look must not tear down a player while export owns the asset.
+    func reloadPreviewUnlessExporting(_ clipID: String) {
+        if session.isRendering(clipID) { return }
         preview = .loading
     }
 
@@ -209,8 +218,7 @@ struct ClipListView: View {
     }
 
     private func isExporting(_ clip: EDLClip) -> Bool {
-        if case .rendering = renderState(of: clip) { return true }
-        return false
+        session.isRendering(clip.id)
     }
 
     private func isSavedCurrent(_ clip: EDLClip) -> Bool {
