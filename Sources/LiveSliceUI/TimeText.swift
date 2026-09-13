@@ -1,5 +1,5 @@
 // Why: clock / duration / SMPTE strings for the workbench and the edit sheet. Pure so tests can
-// pin the mock copy (`5,135` lives in LLMCost; `00:00:12:15` and `素材片段(6)` live here).
+// pin the copy (`00:18`, `1分02秒`, `00:00:12:15`).
 
 import Foundation
 
